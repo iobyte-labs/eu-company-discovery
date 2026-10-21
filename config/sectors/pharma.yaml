@@ -1,0 +1,98 @@
+# Pharmaceuticals, biotech and medical devices.
+#
+# This sector carries over the vocabulary proven in the base version of this project, whose
+# campaign targeted pharmacovigilance, QA/QC and audit roles at German pharma companies. The
+# terms are kept in German, French and English so the same sector file serves several
+# countries — which is the point of separating sector from country.
+
+slug: pharma
+name: Pharmaceuticals, Biotech and Medical Devices
+keywords:
+  - pharmaceutical
+  - pharmazeutisch
+  - pharmaceutique
+  - pharma
+  - biotech
+  - biotechnology
+  - biotechnologie
+  - medical device
+  - Medizintechnik
+  - dispositif médical
+  - drug substance
+  - drug product
+  - Arzneimittel
+  - médicament
+  - API
+  - active pharmaceutical ingredient
+  - Wirkstoff
+  - contract manufacturing
+  - CDMO
+  - CRO
+  - clinical trial
+  - klinische Studie
+  - essai clinique
+  - vaccine
+  - Impfstoff
+  - vaccin
+  - sterile manufacturing
+  - Sterilherstellung
+  - diagnostics
+  - Diagnostik
+
+synonyms:
+  pharmacovigilance: [PV, drug safety, Arzneimittelsicherheit, pharmacovigilance]
+  quality assurance: [QA, Qualitätssicherung, assurance qualité, QS]
+  quality control: [QC, Qualitätskontrolle, contrôle qualité]
+  good manufacturing practice: [GMP, cGMP, GxP, gute Herstellungspraxis]
+  regulatory affairs: [RA, Zulassung, affaires réglementaires]
+  validation: [Validierung, qualification, IQ, OQ, PQ, Qualifizierung]
+  audit: [Audit, Auditierung, inspection, Inspektion]
+  quality risk management: [QRM, Qualitätsrisikomanagement, ICH Q9, ISO 14971]
+  corrective action: [CAPA, Korrekturmaßnahme, action corrective]
+  supplier quality: [Lieferantenqualität, qualité fournisseur, supplier audit]
+
+activities:
+  - pharmacovigilance
+  - signal detection
+  - aggregate reporting
+  - PSUR
+  - adverse event reporting
+  - GMP manufacturing
+  - batch release
+  - Chargenfreigabe
+  - deviation management
+  - Abweichungsmanagement
+  - change control
+  - CAPA management
+  - complaint handling
+  - Reklamationsmanagement
+  - process validation
+  - cleaning validation
+  - computer system validation
+  - supplier qualification
+  - internal audit
+  - regulatory submission
+  - stability testing
+  - analytical method validation
+
+# Keeps agencies, distributors, retail pharmacy and publishers out of a manufacturer list.
+negative_keywords:
+  - Personalvermittlung
+  - recruitment agency
+  - agence de recrutement
+  - Zeitarbeit
+  - staffing
+  - Apotheke
+  - pharmacy
+  - pharmacie
+  - Drogerie
+  - drugstore
+  - Großhandel
+  - wholesaler
+  - grossiste
+  - Fachzeitschrift
+  - trade journal
+  - Kongress
+  - conference organiser
+  - Tiermedizin
+  - veterinary practice

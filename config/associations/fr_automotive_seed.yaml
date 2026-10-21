@@ -1,0 +1,51 @@
+# A curated seed list for the French automotive supply chain.
+#
+# This is the honest starting point for a new country: a handful of companies an operator
+# already knows, entered by hand, with the source written down. It needs no network, no
+# selectors and no code, and it goes through exactly the same identity, dedup and provenance
+# machinery as a crawled directory — so nothing has to be reworked when a real adapter for
+# this sector arrives.
+#
+# The companies below use example.org domains on purpose: this file ships in a public
+# repository, and committing a real company list that someone might mistake for a verified
+# dataset would be worse than shipping an obvious placeholder. Replace them with real
+# entries locally, or point a directory adapter at a real source.
+
+slug: fr_automotive_seed
+name: French automotive suppliers (curated seed)
+country: fr
+sectors: [automotive]
+adapter: seed_list
+access_method: manual
+
+# No directory_url: nothing is fetched. source_url below records where the list came from.
+
+limits:
+  max_records: 500
+
+settings:
+  source_note: "placeholder entries — replace with a real curated list before use"
+  source_url: "https://example.org/placeholder-member-list"
+  # Each entry needs its own registrable domain. Three companies on subdomains of one
+  # domain would be deduplicated into one company, because a shared registrable domain is
+  # the engine's strongest "these are the same company" signal — see the note on shared
+  # hosting in docs/knowledge-concepts.md.
+  companies:
+    - name: Exemple Emboutissage SAS
+      website: https://exemple-emboutissage.example.org
+      region: ara
+      description: Metal stamping and sub-assembly for tier 1 automotive suppliers.
+    - name: Exemple Injection Plastique SARL
+      website: https://exemple-injection.example.net
+      region: hdf
+      description: Technical plastic injection moulding, ISO/TS certified.
+    - name: Exemple Électronique Embarquée SA
+      website: https://exemple-embarquee.example.com
+      region: idf
+      description: Embedded electronics and wiring harnesses for electric vehicles.
+      keywords: [electric vehicle, wiring harness]
+    - name: Exemple Usinage de Précision
+      # No website: the record is kept and reports what is missing, rather than being
+      # dropped or given a guessed domain.
+      region: naq
+      description: Precision machining of powertrain components.

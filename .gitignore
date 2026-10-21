@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+eucd
+eucd.exe
+
+# Databases and exports are local working state, never committed from a dev machine.
+# The dataset a workflow publishes is committed deliberately, under data/.
+*.db
+*.db-wal
+*.db-shm
+/export/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Never. If one of these ever appears here, something is badly wrong.
+.env
+.env.*
+*.pem
+*.key
+secrets.yaml

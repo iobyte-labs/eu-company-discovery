@@ -1,0 +1,56 @@
+# A worked example of a declarative HTML directory, kept disabled.
+#
+# Two things are being demonstrated here.
+#
+# First: how a public member directory is read with no code at all. The `settings` below are
+# the whole adapter — a row selector, field selectors within each row, and a pagination
+# rule. That is what "adding a sector or a source is configuration, not a code change"
+# means in practice.
+#
+# Second: how a source that cannot be used is handled. This one is disabled with a reason,
+# not deleted. A future reader needs to know it was considered and why it was not used,
+# otherwise the same dead end gets rediscovered every few months.
+#
+# The html_directory adapter arrives in Phase 2. A disabled source is allowed to name an
+# adapter that does not exist yet, which is exactly so that a worked example like this can
+# be kept rather than deleted; `eucd config validate` checks adapter names only for enabled
+# sources.
+
+slug: fr_pharma_directory
+name: French pharmaceutical industry directory (example)
+country: fr
+sectors: [pharma]
+directory_url: https://example.org/annuaire/adherents
+adapter: html_directory
+access_method: html
+
+disabled: true
+disabled_reason: >-
+  Placeholder. No real directory has been assessed yet: before enabling anything here,
+  check that the source publishes a member list intended to be read, that its terms and
+  robots.txt permit automated access, and that no login or CAPTCHA stands in the way. If one
+  does, leave this disabled and record what was found — do not work around it.
+
+limits:
+  max_pages: 25
+  requests_per_minute: 10
+  timeout: 20s
+  max_response_bytes: 2097152
+
+settings:
+  # Each member is one repeating block on the listing page.
+  row_selector: "ul.member-list > li.member"
+  fields:
+    name: "h3.member-name"
+    website:
+      selector: "a.member-site"
+      attribute: href
+    region: "span.member-region"
+    description: "p.member-summary"
+  # Pagination: follow the "next" link until it is absent or max_pages is reached.
+  pagination:
+    mode: next_link
+    next_selector: "a[rel=next]"
+  # A page that yields no rows is a broken selector, not an empty directory. Saying so here
+  # makes the adapter fail loudly instead of reporting a successful run of zero companies.
+  fail_on_empty_page: true

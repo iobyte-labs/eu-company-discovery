@@ -1,0 +1,206 @@
+# Public CI. It validates the software and nothing else.
+#
+# No live crawling, no LLM calls, no SMTP, no secrets, no browsers. Every test here runs
+# offline against recorded fixtures, which is what makes this workflow safe to run on a
+# public repository and independent of anybody's personal data.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run for the same ref. Saves minutes and stops two runs
+# racing on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default. No job here needs to write anything.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The version in go.mod, plus the previous one, so the module keeps working for
+        # anyone who has not upgraded yet.
+        go: ["1.25", "1.26"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          go mod download
+
+      # go.mod and go.sum must already be tidy. Catching it here keeps a stray indirect
+      # dependency from arriving unnoticed.
+      - name: Check go.mod is tidy
+        run: |
+          cp go.mod go.mod.orig
+          cp go.sum go.sum.orig
+          go mod tidy
+          diff -u go.mod.orig go.mod || {
+            echo "::error::go.mod is not tidy — run 'go mod tidy' and commit the result"
+            exit 1
+          }
+          diff -u go.sum.orig go.sum || {
+            echo "::error::go.sum is not tidy — run 'go mod tidy' and commit the result"
+            exit 1
+          }
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -20
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: true
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: --timeout=5m
+
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: true
+
+      # CGO off proves the pure-Go SQLite driver really does allow static cross-compilation.
+      # If this job ever needs CGO, a dependency has regressed that property.
+      - name: Build
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -trimpath -ldflags "-s -w" -o "eucd-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/eucd
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eucd-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: eucd-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 7
+
+  # The committed example configuration must stay valid, and the engine must stay
+  # idempotent. This is the acceptance criterion "repeated discovery runs do not create
+  # duplicate companies", checked on every push rather than asserted in a README.
+  acceptance:
+    name: acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Build
+        run: go build -o eucd ./cmd/eucd
+
+      - name: Configuration is valid
+        run: ./eucd config validate
+
+      - name: Discovery is idempotent
+        run: |
+          set -euo pipefail
+          ./eucd --db ci.db discover > first.txt
+          ./eucd --db ci.db discover > second.txt
+          cat second.txt
+          # The second run must create nothing. Anything else means a record lacks a
+          # stable identity.
+          if ! grep -qE '^1 source\(s\): [0-9]+ record\(s\) read, 0 new,' second.txt; then
+            echo "::error::a second discovery run created companies — dedup is broken"
+            exit 1
+          fi
+
+      - name: Export is readable and versioned
+        run: |
+          set -euo pipefail
+          ./eucd --db ci.db export --format json > companies.json
+          ./eucd --db ci.db export --format csv  > companies.csv
+          python3 - <<'PY'
+          import json, sys
+          with open("companies.json") as fh:
+              data = json.load(fh)
+          assert data["schema_version"] == "eucd.companies/1", data["schema_version"]
+          assert data["count"] == len(data["companies"]), "count disagrees with payload"
+          for company in data["companies"]:
+              assert company["company_id"], "a company has no id"
+              assert company["sources"], f"{company['name']} has no provenance"
+          print(f"export ok: {data['count']} companies, schema {data['schema_version']}")
+          PY
+
+      # The public repository must hold no personal data. This is a guard against a
+      # well-meaning commit, not a theoretical concern.
+      - name: No personal data committed
+        run: |
+          set -uo pipefail
+          # A real mail address in tracked files, excluding the placeholder domains the
+          # examples and tests deliberately use.
+          hits=$(grep -rInE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' \
+                   --include='*.go' --include='*.yaml' --include='*.yml' \
+                   --include='*.md' --include='*.json' --include='*.csv' . \
+                 | grep -vE 'example\.(org|net|com|fr|de)|@acme\.|@assoc\.|noreply@|users\.noreply' \
+                 || true)
+          if [ -n "$hits" ]; then
+            echo "::error::a non-example mail address is committed:"
+            echo "$hits"
+            exit 1
+          fi
+          for forbidden in CV.pdf CV.txt candidate.md sent_log.csv optout.txt; do
+            if git ls-files --error-unmatch "**/$forbidden" >/dev/null 2>&1; then
+              echo "::error::$forbidden must never be committed to the public engine"
+              exit 1
+            fi
+          done
+          echo "no personal data found"

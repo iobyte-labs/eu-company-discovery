@@ -1,0 +1,85 @@
+# France.
+#
+# Adding a country means adding a file like this one and nothing else — no engine change.
+# See docs/adding-a-country.md.
+
+code: fr
+name: France
+languages: [fr, en]
+
+regions:
+  - code: ara
+    name: Auvergne-Rhône-Alpes
+    aliases: [Auvergne Rhone Alpes, Rhône-Alpes, Lyon]
+  - code: bfc
+    name: Bourgogne-Franche-Comté
+    aliases: [Bourgogne, Franche-Comté]
+  - code: bre
+    name: Bretagne
+    aliases: [Brittany]
+  - code: cvl
+    name: Centre-Val de Loire
+    aliases: [Centre]
+  - code: cor
+    name: Corse
+    aliases: [Corsica]
+  - code: ges
+    name: Grand Est
+    aliases: [Alsace, Lorraine, Champagne-Ardenne]
+  - code: hdf
+    name: Hauts-de-France
+    aliases: [Nord-Pas-de-Calais, Picardie, Lille]
+  - code: idf
+    name: Île-de-France
+    aliases: [Ile-de-France, Paris, Paris Region, Région parisienne]
+  - code: nor
+    name: Normandie
+    aliases: [Normandy, Haute-Normandie, Basse-Normandie]
+  - code: naq
+    name: Nouvelle-Aquitaine
+    aliases: [Aquitaine, Poitou-Charentes, Limousin, Bordeaux]
+  - code: occ
+    name: Occitanie
+    aliases: [Midi-Pyrénées, Languedoc-Roussillon, Toulouse]
+  - code: pdl
+    name: Pays de la Loire
+    aliases: [Nantes]
+  - code: pac
+    name: Provence-Alpes-Côte d'Azur
+    aliases: [PACA, Provence, Côte d'Azur, Marseille]
+
+contact_policy:
+  # Prefer an address a company published specifically for applications.
+  prefer_recruitment_contacts: true
+  # A general inbox (contact@, info@) may be surfaced, but as a fallback that wants a
+  # human decision — not as an invitation.
+  allow_general_fallback: true
+  # Look for an official careers page first: applying through a company's own channel is
+  # both more likely to be read and less intrusive than mailing an inbox.
+  require_careers_page_check: true
+
+compliance_notes: |
+  Not legal advice. This records what was established while building the France
+  configuration, and what is still open. Read docs/compliance.md before sending anything.
+
+  Established:
+  - A company's published recruitment mailbox (recrutement@, rh@) is business contact
+    information, not personal data, when it names a function rather than a person.
+    An address naming an individual (prenom.nom@) is personal data; the engine refuses to
+    store one, which is enforced in code (normalize.LooksPersonal) and not left to care.
+  - GDPR applies in full. The lawful basis for an individual sending their own job
+    application is normally their own legitimate interest in seeking work. That basis does
+    not extend to bulk unsolicited commercial messaging, and this engine is not built for it.
+  - France's "opposition à la prospection" and the CNIL's guidance on B2B prospecting
+    distinguish an individual relevant application from a marketing campaign. Volume,
+    relevance and the ability to stop on request are what separate them.
+  - An opt-out must be honoured permanently and must survive a database rebuild. The
+    suppression list belongs with the private consumer, not here, and is append-only.
+
+  Open questions, to be resolved before a campaign:
+  - Whether a given association's member directory permits automated reading at all. This
+    is per-association, lives in each association's own config file, and must be checked
+    rather than assumed.
+  - Whether a careers portal's terms forbid approaching a published inbox directly.
+  - Retention: how long a discovered contact may be kept after a decision not to apply.
+    Set this explicitly in the private consumer's retention settings.

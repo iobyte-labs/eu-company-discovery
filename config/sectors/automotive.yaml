@@ -1,0 +1,72 @@
+# Automotive and automotive supply.
+#
+# Adding a sector means adding a file like this one. The engine does not know what
+# "automotive" means; this file is the whole definition. See docs/adding-a-sector.md.
+#
+# Terms are matched case- and accent-insensitively, so write them naturally.
+
+slug: automotive
+name: Automotive
+keywords:
+  - automotive
+  - automobile
+  - équipementier
+  - constructeur automobile
+  - sous-traitance automobile
+  - véhicule
+  - vehicle
+  - powertrain
+  - groupe motopropulseur
+  - châssis
+  - chassis
+  - transmission
+  - OEM
+  - tier 1
+  - tier 2
+  - aftermarket
+  - pièces détachées
+  - electric vehicle
+  - véhicule électrique
+  - battery pump
+  - borne de recharge
+
+synonyms:
+  automotive: [automobile, auto, car industry, industrie automobile]
+  supplier: [équipementier, fournisseur, sous-traitant, tier 1, tier 2]
+  electric vehicle: [EV, véhicule électrique, e-mobility, électromobilité]
+  quality assurance: [assurance qualité, QA, management de la qualité]
+
+activities:
+  - injection plastique
+  - emboutissage
+  - usinage de précision
+  - traitement de surface
+  - fonderie aluminium
+  - assemblage de sous-ensembles
+  - câblage
+  - électronique embarquée
+  - metal stamping
+  - precision machining
+  - surface treatment
+  - wiring harness
+
+# A keyword hit is not proof. These terms say "probably not a manufacturer in this sector",
+# and are the cheapest way to keep agencies, dealers and media out of a supplier list.
+negative_keywords:
+  - agence de recrutement
+  - recruitment agency
+  - cabinet de conseil
+  - portage salarial
+  - intérim
+  - staffing
+  - concessionnaire
+  - car dealership
+  - location de voitures
+  - car rental
+  - auto-école
+  - driving school
+  - garage
+  - carrosserie
+  - magazine
+  - salon professionnel
+  - trade fair
