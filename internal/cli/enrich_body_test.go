@@ -31,7 +31,7 @@ func (r *recorder) ServeHTTP(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, body)
+	_, _ = fmt.Fprint(w, body)
 }
 
 func (r *recorder) requests() []string {
@@ -216,7 +216,7 @@ func TestVisitCompanyRecordsARedirectToASignInPageAsBlocked(t *testing.T) {
 			http.NotFound(w, r)
 		case "/login":
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprint(w, "<html><form>sign in</form></html>")
+			_, _ = fmt.Fprint(w, "<html><form>sign in</form></html>")
 		default:
 			http.Redirect(w, r, "/login?next="+r.URL.Path, http.StatusFound)
 		}

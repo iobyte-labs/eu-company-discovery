@@ -72,7 +72,7 @@ func serve(t *testing.T, routes map[string]http.HandlerFunc) *httptest.Server {
 func html(body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, body)
+		_, _ = fmt.Fprint(w, body)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestGetReadsAPageAndIdentifiesItself(t *testing.T) {
 		"/members": func(w http.ResponseWriter, r *http.Request) {
 			agent.Store(r.Header.Get("User-Agent"))
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprint(w, "<html><body>ok</body></html>")
+			_, _ = fmt.Fprint(w, "<html><body>ok</body></html>")
 		},
 	})
 	fetcher := testFetcher(t, server, Options{UserAgent: UserAgent("1.2.3")})
@@ -118,7 +118,7 @@ func TestCacheServesTheSecondFetchWithoutARequest(t *testing.T) {
 		"/members": func(w http.ResponseWriter, _ *http.Request) {
 			requests.Add(1)
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprint(w, "<html><body>members</body></html>")
+			_, _ = fmt.Fprint(w, "<html><body>members</body></html>")
 		},
 	})
 	fetcher := testFetcher(t, server, Options{CacheDir: t.TempDir()})
@@ -155,7 +155,7 @@ func cacheDirOf(t *testing.T, f *Fetcher) string {
 func TestRobotsDisallowIsBlockedNotAnError(t *testing.T) {
 	server := serve(t, map[string]http.HandlerFunc{
 		"/robots.txt": func(w http.ResponseWriter, _ *http.Request) {
-			fmt.Fprint(w, "User-agent: *\nDisallow: /members\nAllow: /members/public\n")
+			_, _ = fmt.Fprint(w, "User-agent: *\nDisallow: /members\nAllow: /members/public\n")
 		},
 		"/members":        html("<html>should never be read</html>"),
 		"/members/public": html("<html><body>public</body></html>"),
@@ -186,7 +186,7 @@ func TestRobotsDisallowIsBlockedNotAnError(t *testing.T) {
 func TestRobotsCrawlDelayIsHonoured(t *testing.T) {
 	server := serve(t, map[string]http.HandlerFunc{
 		"/robots.txt": func(w http.ResponseWriter, _ *http.Request) {
-			fmt.Fprint(w, "User-agent: *\nCrawl-delay: 0.4\n")
+			_, _ = fmt.Fprint(w, "User-agent: *\nCrawl-delay: 0.4\n")
 		},
 		"/a": html("<html>a</html>"),
 		"/b": html("<html>b</html>"),
@@ -302,7 +302,7 @@ func TestResponseSizeCapRefusesAFloodRatherThanTruncating(t *testing.T) {
 			w.Header().Set("Content-Type", "text/html")
 			chunk := strings.Repeat("x", 4096)
 			for i := 0; i < 64; i++ {
-				fmt.Fprint(w, chunk)
+				_, _ = fmt.Fprint(w, chunk)
 			}
 		},
 		"/small": html("<html>small</html>"),
@@ -395,7 +395,7 @@ func TestRobotsIsFetchedOncePerRun(t *testing.T) {
 	server := serve(t, map[string]http.HandlerFunc{
 		"/robots.txt": func(w http.ResponseWriter, _ *http.Request) {
 			robotsRequests.Add(1)
-			fmt.Fprint(w, "User-agent: *\nDisallow: /private\n")
+			_, _ = fmt.Fprint(w, "User-agent: *\nDisallow: /private\n")
 		},
 		"/a": html("<html>a</html>"),
 		"/b": html("<html>b</html>"),

@@ -194,7 +194,7 @@ func TestCandidateURLsAreOrderedWithTheHomepageLast(t *testing.T) {
 	legal := positions["https://acme.example.org/mentions-legales"]
 	// normalize.URL drops a bare trailing slash, so the homepage is the bare origin.
 	home := positions["https://acme.example.org"]
-	if !(careers < contact && contact < legal && legal < home) {
+	if careers >= contact || contact >= legal || legal >= home {
 		t.Errorf("order is careers=%d contact=%d legal=%d home=%d, want them in that order",
 			careers, contact, legal, home)
 	}

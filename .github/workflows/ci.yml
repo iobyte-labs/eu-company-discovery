@@ -30,9 +30,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The version in go.mod, plus the previous one, so the module keeps working for
-        # anyone who has not upgraded yet.
-        go: ["1.25", "1.26"]
+        # Only the version in go.mod. Testing the previous release as well would be worth
+        # doing, but it cannot work here: modernc.org/sqlite and golang.org/x/time both
+        # declare `go 1.26.0`, so a 1.25 toolchain cannot even download the dependencies —
+        # and setup-go pins GOTOOLCHAIN=local, so it will not switch. Add a version back
+        # here only once every dependency builds with it.
+        go: ["1.26"]
     steps:
       - uses: actions/checkout@v5
 
