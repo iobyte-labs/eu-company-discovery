@@ -79,6 +79,11 @@ func manySites(t *testing.T, requestsPerMin float64) (*fetch.Fetcher, *timeline,
 		}
 		record.enter(host)
 		defer record.leave()
+		// A deliberate pause. Without it a request finishes in microseconds, so on a fast
+		// machine three workers interleave instead of overlapping and "how many were in
+		// flight at once" reads 1 even though the work really is parallel. The pause makes
+		// the overlap observable rather than making it happen.
+		time.Sleep(25 * time.Millisecond)
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -151,8 +156,8 @@ func TestConcurrentEnrichmentVisitsSitesInParallel(t *testing.T) {
 		t.Errorf("found %d contacts, want one per company", contacts)
 	}
 	// Twelve requests at one per 100 ms on a single queue is ~1.1 s. Three domains visited
-	// at once should take roughly a third of that.
-	if elapsed > 700*time.Millisecond {
+	// at once should take roughly a third of that, plus the handler's own pauses.
+	if elapsed > 900*time.Millisecond {
 		t.Errorf("six companies across three domains took %s with concurrency 3; "+
 			"that is not parallel", elapsed)
 	}
