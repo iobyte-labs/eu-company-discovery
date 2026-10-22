@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -33,18 +34,30 @@ func company(name, country, website string) model.Company {
 func TestMigrateIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
-	// Already migrated by the helper; a second and third call must be no-ops.
-	for i := 0; i < 2; i++ {
-		if err := store.Migrate(ctx, EngineMigrations()); err != nil {
-			t.Fatalf("re-migrate: %v", err)
-		}
-	}
-	applied, err := store.AppliedMigrations(ctx)
+
+	// Already migrated by the helper. What matters is that the set does not grow when
+	// Migrate is called again — not how many migrations exist, which changes every time
+	// one is added.
+	first, err := store.AppliedMigrations(ctx)
 	if err != nil {
 		t.Fatalf("applied: %v", err)
 	}
-	if len(applied) != 1 {
-		t.Fatalf("expected 1 applied migration, got %d: %v", len(applied), applied)
+	if len(first) == 0 {
+		t.Fatal("the helper migrated nothing, so this test would prove nothing")
+	}
+
+	for i := range 2 {
+		if err := store.Migrate(ctx, EngineMigrations()); err != nil {
+			t.Fatalf("re-migrate %d: %v", i+1, err)
+		}
+		again, err := store.AppliedMigrations(ctx)
+		if err != nil {
+			t.Fatalf("applied after re-migrate %d: %v", i+1, err)
+		}
+		if !slices.Equal(first, again) {
+			t.Fatalf("re-migrate %d changed the applied set:\n before %v\n after  %v",
+				i+1, first, again)
+		}
 	}
 }
 
