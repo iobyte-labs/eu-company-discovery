@@ -158,7 +158,7 @@ func insertRankings(ctx context.Context, tx *sql.Tx, rankings []model.Ranking) (
 	if err != nil {
 		return 0, err
 	}
-	defer statement.Close()
+	defer statement.Close() //nolint:errcheck // the transaction owns the statement lifetime
 
 	written := 0
 	for _, ranking := range rankings {
