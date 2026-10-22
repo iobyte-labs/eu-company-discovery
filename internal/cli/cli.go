@@ -104,6 +104,7 @@ func newRootCmd(opts *globals) *cobra.Command {
 		newEnrichCmd(opts),
 		newClassifyCmd(opts),
 		newImportCmd(opts),
+		newRankCmd(opts),
 	)
 	return root
 }
