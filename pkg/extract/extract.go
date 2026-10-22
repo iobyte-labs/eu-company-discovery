@@ -319,10 +319,12 @@ var genericBrandWords = map[string]bool{
 // sameBrand reports whether an address plausibly belongs to the company whose page it was
 // read from.
 //
-// Not "the same registrable domain": a company routinely answers at a sibling domain, and
-// info@diapharm.de on diapharm.com is plainly the same company. What is being tested is
-// whether the address's domain shares a distinctive word with the company's own domain or
-// the page it was read from — which diapharm.de does, and openai.com does not.
+// Not "the same registrable domain": a company routinely answers mail at a sibling of the
+// domain its website sits on — the same brand under a different TLD, or with "-group" or
+// "-pharma" appended. What is being tested is whether the address's domain shares a
+// distinctive word with the company's own domain or with the page it was read from. A
+// sibling of the brand does; the data-protection address of the analytics vendor whose
+// banner sits in the footer does not, which is the case this exists to catch.
 func sameBrand(address, site, pageURL string) bool {
 	// The registrable domain on both sides, so a host and a domain are never compared
 	// against each other: mail.diapharm.de and diapharm.de are the same company.

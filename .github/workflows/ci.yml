@@ -189,11 +189,19 @@ jobs:
         run: |
           set -uo pipefail
           # A real mail address in tracked files, excluding the placeholder domains the
-          # examples and tests deliberately use.
+          # examples and tests deliberately use. ".example" is in the list because RFC 6761
+          # reserves it for exactly this; a test about two sibling domains of one brand
+          # needs two names it can invent, and "example.org" is itself one registrable
+          # domain, so it cannot supply them.
+          #
+          # The filter drops the whole grep line, so an address does slip through on a line
+          # that also mentions a placeholder. Tightening that costs more than it buys: the
+          # check exists to catch a harvested dataset or a real contact copied into a
+          # fixture, and neither arrives on a line of placeholders.
           hits=$(grep -rInE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' \
                    --include='*.go' --include='*.yaml' --include='*.yml' \
                    --include='*.md' --include='*.json' --include='*.csv' . \
-                 | grep -vE 'example\.(org|net|com|fr|de)|@acme\.|@assoc\.|noreply@|users\.noreply' \
+                 | grep -vE 'example\.(org|net|com|fr|de)|\.example$|\.example[^a-zA-Z0-9.-]|@acme\.|@assoc\.|noreply@|users\.noreply' \
                  || true)
           if [ -n "$hits" ]; then
             echo "::error::a non-example mail address is committed:"
