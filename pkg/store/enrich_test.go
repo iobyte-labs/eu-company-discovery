@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -216,5 +217,59 @@ func TestListCompaniesSelectsWhatEnrichmentShouldVisit(t *testing.T) {
 	}
 	if companies[0].ID == noSite.CompanyID {
 		t.Error("a company with no website was selected; there is nothing to visit")
+	}
+}
+
+// Ranking matches a profile's skill terms against the company's own words, so enrichment
+// has to keep them. Before this was captured, the largest scoring factor had nothing but
+// the company name to work with.
+func TestEnrichmentStoresTheCompanysOwnWords(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	created := mustUpsert(t, store, company("Beispiel Pharma GmbH", "de", "https://beispiel.example.org"))
+
+	result, err := store.RecordEnrichment(ctx, created.ID, Enrichment{
+		Description: "Wir entwickeln Arzneimittel und betreiben Pharmakovigilanz.",
+		CrawlStatus: model.CrawlOK,
+	})
+	if err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if !result.DescriptionSet {
+		t.Error("DescriptionSet should report that the words were stored")
+	}
+	after, err := store.GetCompany(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(after.Description, "Pharmakovigilanz") {
+		t.Errorf("description was not stored: %q", after.Description)
+	}
+}
+
+// A later visit that lands on a thin page must not erase a fuller description.
+func TestAThinnerDescriptionDoesNotReplaceAFullerOne(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	created := mustUpsert(t, store, company("Beispiel Pharma GmbH", "de", "https://beispiel.example.org"))
+
+	full := "Wir entwickeln Arzneimittel, betreiben Pharmakovigilanz und fertigen nach GMP."
+	if _, err := store.RecordEnrichment(ctx, created.ID, Enrichment{
+		Description: full, CrawlStatus: model.CrawlOK,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.RecordEnrichment(ctx, created.ID, Enrichment{
+		Description: "Kontakt", CrawlStatus: model.CrawlOK,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DescriptionSet {
+		t.Error("a thinner description should not report itself as set")
+	}
+	after, _ := store.GetCompany(ctx, created.ID)
+	if after.Description != full {
+		t.Errorf("the fuller description was lost: %q", after.Description)
 	}
 }
