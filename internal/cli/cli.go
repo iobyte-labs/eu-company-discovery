@@ -102,6 +102,7 @@ func newRootCmd(opts *globals) *cobra.Command {
 		newCompaniesCmd(opts),
 		newExportCmd(opts),
 		newEnrichCmd(opts),
+		newClassifyCmd(opts),
 		newImportCmd(opts),
 	)
 	return root

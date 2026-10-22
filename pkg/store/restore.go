@@ -17,6 +17,8 @@ type RestoreResult struct {
 	Companies int
 	Contacts  int
 	Sources   int
+	// Labels counts judgements carried over.
+	Labels int
 	// Identities counts the identity keys attached. It is normally more than Companies,
 	// because a company with a website has both a name key and a domain key.
 	Identities int
@@ -52,6 +54,7 @@ func (s *Store) RestoreCompanies(
 			result.Contacts += written.Contacts
 			result.Sources += written.Sources
 			result.Identities += written.Identities
+			result.Labels += written.Labels
 		}
 		return nil
 	})
@@ -123,7 +126,7 @@ func checkRestorable(companies []model.Company) error {
 	return nil
 }
 
-type restoreCounts struct{ Contacts, Sources, Identities int }
+type restoreCounts struct{ Contacts, Sources, Identities, Labels int }
 
 func restoreCompanyTx(
 	ctx context.Context, tx *sql.Tx, c model.Company,
@@ -200,5 +203,11 @@ func restoreCompanyTx(
 		}
 		counts.Contacts++
 	}
+	// Judgements are carried too. They are disposable in principle, but they cost money to
+	// produce, and a cache miss should not quietly spend it again.
+	if err := restoreLabelsTx(ctx, tx, c.ID, c.Labels); err != nil {
+		return counts, err
+	}
+	counts.Labels += len(c.Labels)
 	return counts, nil
 }

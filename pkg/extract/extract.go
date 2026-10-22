@@ -206,6 +206,23 @@ var joinedInline = map[string]bool{
 	"font": true, "wbr": true, "ins": true, "del": true, "s": true, "q": true,
 }
 
+// Text returns a fetched page's readable text, with script and style content removed and
+// element boundaries preserved as spaces.
+//
+// Exported because judging what a company does needs the same text that finding its
+// address does, and reading it twice in two ways would mean two sets of bugs.
+func Text(page *directory.Page) string {
+	if page == nil || len(page.Body) == 0 {
+		return ""
+	}
+	document, err := goquery.NewDocumentFromReader(bytes.NewReader(page.Body))
+	if err != nil {
+		return ""
+	}
+	document.Find("script, style, noscript, template").Remove()
+	return normalize.CollapseWhitespace(visibleText(document))
+}
+
 // visibleText returns a document's text with element boundaries preserved as spaces.
 //
 // goquery's Text() concatenates text nodes with nothing between them, so a row of links
