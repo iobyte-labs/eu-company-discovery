@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
 
 	"github.com/iobyte-labs/eu-company-discovery/pkg/directory"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/model"
@@ -178,7 +179,7 @@ func FromPage(page *directory.Page, companyWebsite string) Result {
 	// error-reporting snippet carries addresses that belong to a vendor, not to this
 	// company, and they are not published contact details by any reading.
 	document.Find("script, style, noscript, template").Remove()
-	text := deobfuscate(document.Text())
+	text := deobfuscate(visibleText(document))
 	for _, match := range emailPattern.FindAllString(text, 200) {
 		add(match)
 	}
@@ -194,6 +195,52 @@ func FromPage(page *directory.Page, companyWebsite string) Result {
 	result.Contacts, result.DroppedPersonal = contactsFrom(addresses, page)
 	result.CareersURLs = careersLinks(document, page, site)
 	return result
+}
+
+// joinedInline are the elements a page uses to style part of a word. Text either side of
+// one belongs to the same word, so no separator is inserted around them. Everything else —
+// a link, a cell, a list item, a paragraph — separates.
+var joinedInline = map[string]bool{
+	"b": true, "i": true, "em": true, "strong": true, "span": true, "u": true,
+	"small": true, "sup": true, "sub": true, "mark": true, "abbr": true, "code": true,
+	"font": true, "wbr": true, "ins": true, "del": true, "s": true, "q": true,
+}
+
+// visibleText returns a document's text with element boundaries preserved as spaces.
+//
+// goquery's Text() concatenates text nodes with nothing between them, so a row of links
+// reading "180" / "muenchen@acme.de" / "mehr" comes out as "180muenchen@acme.demehr" — and
+// an address pattern run over that yields muenchen@acme.demehr, an address nobody
+// published. This engine's whole claim is that an address was read off a page, so an
+// address manufactured by concatenation is the worst thing it can produce.
+//
+// The inline elements above stay joined, because a page that writes
+// "<span>in</span>fo@acme.de" means one address, and splitting there would lose a real one.
+// Between a miss and an invention, this prefers the miss.
+func visibleText(document *goquery.Document) string {
+	var out strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		switch n.Type {
+		case html.TextNode:
+			out.WriteString(n.Data)
+			return
+		case html.ElementNode:
+			if n.Data == "br" {
+				out.WriteByte(' ')
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+		if n.Type == html.ElementNode && !joinedInline[n.Data] {
+			out.WriteByte(' ')
+		}
+	}
+	for _, node := range document.Nodes {
+		walk(node)
+	}
+	return out.String()
 }
 
 // mailtoAddress reads the address out of a mailto: link, dropping any ?subject= and
