@@ -23,6 +23,7 @@ func newImportCmd(opts *globals) *cobra.Command {
 		Short: "Import companies from outside this engine",
 	}
 	cmd.AddCommand(newImportLegacyCmd(opts))
+	cmd.AddCommand(newImportDatasetCmd(opts))
 	return cmd
 }
 
