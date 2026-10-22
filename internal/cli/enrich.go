@@ -7,12 +7,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	eucd "github.com/iobyte-labs/eu-company-discovery"
+	"github.com/iobyte-labs/eu-company-discovery/pkg/directory"
 	eucderrors "github.com/iobyte-labs/eu-company-discovery/pkg/errors"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/extract"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/fetch"
@@ -176,6 +178,7 @@ func newEnrichCmd(opts *globals) *cobra.Command {
 				recorded, err := db.RecordEnrichment(cmd.Context(), outcome.company.ID,
 					store.Enrichment{
 						CareersURL:  outcome.visit.careersURL,
+						Description: outcome.visit.description,
 						Contacts:    outcome.visit.contacts,
 						CrawlStatus: outcome.visit.status,
 						CrawlError:  outcome.visit.statusDetail,
@@ -238,11 +241,16 @@ type visit struct {
 	statusDetail string
 	checkedAt    time.Time
 	pages        []string
-	blocked      []string
-	refused      []string
-	missing      int
-	dropped      int
-	offBrand     int
+	// description is the company's own words, taken from the page most likely to carry
+	// them. Ranking matches a profile's skill terms against this: a company that never
+	// says what it does cannot be scored on what it does, and before this was captured
+	// the largest scoring factor had nothing but the company's name to work with.
+	description string
+	blocked     []string
+	refused     []string
+	missing     int
+	dropped     int
+	offBrand    int
 	// abandoned is set when the run was cancelled while this company was in flight. Such a
 	// visit is discarded rather than recorded: writing a crawl_error for it would mark a
 	// perfectly good site as failed, and every deadline-truncated run would poison the tail
@@ -301,6 +309,12 @@ func visitCompany(
 			result.status = model.CrawlOK
 		}
 
+		// Keep the best description this visit has seen. The text is already in hand —
+		// the page was fetched for its contacts — so this costs no extra request.
+		if candidate := describeFrom(page); betterDescription(candidate, result.description) {
+			result.description = candidate
+		}
+
 		found := extract.FromPage(page, company.Website)
 		result.dropped += found.DroppedPersonal
 		result.offBrand += found.DroppedOffBrand
@@ -346,10 +360,16 @@ func visitCompany(
 // server that has already said no, four more times.
 func (v *visit) classify(target string, err error) (stop bool) {
 	switch {
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// Our own clock, not the site's doing. Recording this as an error would blame a
-		// company for a deadline we set, and the next run would see a failure that never
-		// happened. The caller discards an abandoned visit entirely.
+	case errors.Is(err, context.Canceled):
+		// The run is being torn down. Recording this as an error would blame a company for
+		// a deadline we set, and the next run would see a failure that never happened.
+		//
+		// DeadlineExceeded is deliberately NOT here. A slow site trips the fetcher's own
+		// per-request timeout with exactly that error, and treating it as abandonment made
+		// every slow site vanish from the run while the summary announced that the run
+		// deadline had passed — with most of the budget still unspent. Our own deadline is
+		// detected by the caller, which checks runCtx.Err() after each company; a request
+		// timeout is the site failing to answer, and is recorded as one.
 		v.abandoned = true
 		return true
 	case eucderrors.IsBlocked(err):
@@ -654,4 +674,28 @@ func groupByDomain(companies []model.Company) [][]model.Company {
 		groups = append(groups, byDomain[key])
 	}
 	return groups
+}
+
+// descriptionLimit caps what is stored. Enough for a profile's skill terms to match
+// against, short enough that the database stays a list of companies rather than a copy of
+// the web.
+const descriptionLimit = 2000
+
+// describeFrom takes what a company says it does, from a page already in hand.
+//
+// It is the company's own words, not a summary written for it. That distinction matters
+// for ranking: matching skill terms against a model's paraphrase would let the model decide
+// the match indirectly, and a score that cannot be traced to something the company actually
+// published is not auditable.
+func describeFrom(page *directory.Page) string {
+	return extract.Describe(page, descriptionLimit)
+}
+
+// betterDescription prefers the more substantial text.
+//
+// A homepage usually says what a company does; a contact page says where it is. Taking the
+// longer of the two is a crude proxy, but it agrees with the store's own merge rule and
+// needs no guess about which page type is in hand.
+func betterDescription(candidate, existing string) bool {
+	return len(strings.TrimSpace(candidate)) > len(strings.TrimSpace(existing))
 }

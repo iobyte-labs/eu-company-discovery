@@ -240,6 +240,17 @@ func Text(page *directory.Page) string {
 // Between a miss and an invention, this prefers the miss.
 func visibleText(document *goquery.Document) string {
 	var out strings.Builder
+	for _, node := range document.Nodes {
+		out.WriteString(nodeText(node))
+	}
+	return out.String()
+}
+
+// nodeText walks one node, preserving element boundaries as spaces. Shared by visibleText
+// and visibleNodeText so that both produce exactly the same spacing — the boundary rule
+// above is subtle enough that a second implementation would eventually disagree with it.
+func nodeText(root *html.Node) string {
+	var out strings.Builder
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		switch n.Type {
@@ -258,9 +269,7 @@ func visibleText(document *goquery.Document) string {
 			out.WriteByte(' ')
 		}
 	}
-	for _, node := range document.Nodes {
-		walk(node)
-	}
+	walk(root)
 	return out.String()
 }
 
@@ -479,4 +488,94 @@ func resolve(pageURL, href string) string {
 		return href
 	}
 	return base.ResolveReference(reference).String()
+}
+
+// Describe returns what a company says it does, taken from one of its own pages.
+//
+// This is not Text. Text is everything visible, which on a homepage is mostly the
+// navigation menu — "Skip navigation Start Analytics Contact News Downloads Imprint" is
+// what a company's chrome says, not what the company does. Ranking matches a profile's
+// skill terms against this text, so chrome would both crowd out the real content and
+// produce matches on menu labels.
+//
+// Three sources, in descending order of how deliberately the company wrote them:
+//
+//  1. The meta description, which is a company's own one-sentence summary of itself,
+//     written for search results and therefore written on purpose.
+//  2. The main content region, if the page marks one.
+//  3. The body with chrome removed, as a last resort.
+//
+// Returns "" when the page says nothing useful, which is a better answer than returning a
+// menu: an empty description scores nothing, while a menu scores on the wrong words.
+func Describe(page *directory.Page, limit int) string {
+	if page == nil || len(page.Body) == 0 {
+		return ""
+	}
+	document, err := goquery.NewDocumentFromReader(bytes.NewReader(page.Body))
+	if err != nil {
+		return ""
+	}
+
+	// A meta description is short, so it is combined with the body text rather than used
+	// alone: it says what the company is, and the body says what it works on.
+	var parts []string
+	if summary := metaDescription(document); summary != "" {
+		parts = append(parts, summary)
+	}
+
+	document.Find("script, style, noscript, template").Remove()
+	// Chrome, in the order a page is likely to mark it. Removing these is what separates
+	// what a company says from how a visitor moves around its site.
+	document.Find("nav, header, footer, aside, form, " +
+		"[role=navigation], [role=banner], [role=contentinfo], [role=search], " +
+		".nav, .navbar, .navigation, .menu, .header, .footer, .sidebar, " +
+		"#nav, #navbar, #navigation, #menu, #header, #footer, #sidebar, " +
+		".cookie, .cookies, .cookie-banner, .breadcrumb, .breadcrumbs, .skip-link").Remove()
+
+	// Prefer a marked main region; fall back to the body.
+	region := document.Find("main, [role=main], article").First()
+	if region.Length() == 0 {
+		region = document.Find("body")
+	}
+	if body := normalize.CollapseWhitespace(visibleNodeText(region)); body != "" {
+		parts = append(parts, body)
+	}
+
+	text := normalize.CollapseWhitespace(strings.Join(parts, " "))
+	if limit > 0 && len(text) > limit {
+		// Cut on a word boundary, so the stored text does not end mid-word.
+		if cut := strings.LastIndex(text[:limit], " "); cut > limit/2 {
+			text = text[:cut]
+		} else {
+			text = text[:limit]
+		}
+	}
+	return text
+}
+
+// metaDescription reads the page's own summary of itself, preferring the standard meta tag
+// over the Open Graph one when both are present.
+func metaDescription(document *goquery.Document) string {
+	for _, selector := range []string{
+		`meta[name="description"]`,
+		`meta[name="Description"]`,
+		`meta[property="og:description"]`,
+	} {
+		if content, ok := document.Find(selector).First().Attr("content"); ok {
+			if trimmed := normalize.CollapseWhitespace(content); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ""
+}
+
+// visibleNodeText is visibleText for a selection rather than a whole document.
+func visibleNodeText(selection *goquery.Selection) string {
+	var out strings.Builder
+	for _, node := range selection.Nodes {
+		out.WriteString(nodeText(node))
+		out.WriteString(" ")
+	}
+	return out.String()
 }
