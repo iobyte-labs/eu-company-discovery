@@ -246,11 +246,25 @@ func (f *Fetcher) Get(ctx context.Context, rawURL string) (*directory.Page, erro
 	if err != nil {
 		return nil, err
 	}
+	// robots.txt is consulted before the cache, not after. A cached body is still this
+	// site's content, and a site that has since disallowed the path has withdrawn its
+	// permission for us to be reading it — serving the cached copy would be honouring the
+	// letter of "we made no request" while ignoring what the file asks. The cost is one
+	// robots.txt request per host per run, even on a fully cached run.
+	rules, err := f.robotsFor(ctx, parsedURL(canonical))
+	if err != nil {
+		return nil, err
+	}
+	if err := refusedByRobots(canonical, rules); err != nil {
+		return nil, err
+	}
 	if page, ok := f.cache.get(canonical); ok {
 		f.logger.Debug("cache hit", "url", canonical)
 		return page, nil
 	}
-	if err := f.permit(ctx, canonical); err != nil {
+	// Only now is a request actually going to be made, so only now is there anything to be
+	// polite about.
+	if err := f.wait(ctx, canonical, rules.crawlDelay); err != nil {
 		return nil, err
 	}
 	page, err := f.do(ctx, canonical)
@@ -268,14 +282,19 @@ func (f *Fetcher) Get(ctx context.Context, rawURL string) (*directory.Page, erro
 // URL and again for every redirect hop, because a hop is a request to a server that has
 // said nothing about us yet.
 func (f *Fetcher) permit(ctx context.Context, canonical string) error {
-	parsed, err := url.Parse(canonical)
-	if err != nil {
-		return fmt.Errorf("%w: %q will not parse", ErrUnsafeURL, canonical)
-	}
-	rules, err := f.robotsFor(ctx, parsed)
+	rules, err := f.robotsFor(ctx, parsedURL(canonical))
 	if err != nil {
 		return err
 	}
+	if err := refusedByRobots(canonical, rules); err != nil {
+		return err
+	}
+	return f.wait(ctx, canonical, rules.crawlDelay)
+}
+
+// refusedByRobots reports a blocked error when this site's rules disallow the path.
+func refusedByRobots(canonical string, rules *robotsRules) error {
+	parsed := parsedURL(canonical)
 	target := parsed.EscapedPath()
 	if target == "" {
 		target = "/"
@@ -288,7 +307,17 @@ func (f *Fetcher) permit(ctx context.Context, canonical string) error {
 			"robots.txt on %s disallows %q for user-agent %q (rule: Disallow: %s)",
 			parsed.Host, target, rules.agentGroup, pattern)
 	}
-	return f.wait(ctx, canonical, rules.crawlDelay)
+	return nil
+}
+
+// parsedURL parses a URL the guard has already approved, so it cannot fail in practice; an
+// empty URL rather than an error keeps the callers readable.
+func parsedURL(canonical string) *url.URL {
+	parsed, err := url.Parse(canonical)
+	if err != nil {
+		return &url.URL{}
+	}
+	return parsed
 }
 
 // bucketKey is the rate-limit bucket a URL belongs to: its registrable domain.

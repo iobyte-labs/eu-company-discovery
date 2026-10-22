@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  A member directory that publishes no structure worth selecting: the members are simply
+  the companies it links to. This is what link_harvest is for.
+
+  The member domains use the reserved .example TLD on purpose. Subdomains of example.org
+  would all share ONE registrable domain and collapse into a single company, which is the
+  shared-hosting case in docs/knowledge-concepts.md §2 — correct behaviour that would make
+  this fixture test nothing.
+
+  It carries, deliberately, everything that makes harvesting imprecise: a sponsor strip, a
+  social media row, the web agency's credit in the footer, a member linked twice with
+  different text, and a member whose only link text is "Website".
+-->
+<html lang="de">
+<head><meta charset="utf-8"><title>Unsere Mitglieder</title></head>
+<body>
+  <header>
+    <a href="/">Verband</a>
+    <a href="/mitglieder">Mitglieder</a>
+  </header>
+
+  <main>
+    <h1>Unsere Mitglieder</h1>
+    <ul class="member-list">
+      <li><a href="https://beispiel-pharma.example">Beispiel Pharma GmbH</a></li>
+      <li><a href="https://beispiel-biotech.example">Beispiel Biotech AG</a></li>
+      <li>
+        <!-- Linked twice: once by name, once by a generic label. The name must win. -->
+        <a href="https://beispiel-labor.example">Beispiel Labor GmbH &amp; Co. KG</a>
+        <a href="https://beispiel-labor.example/kontakt">Website</a>
+      </li>
+      <li><a href="https://beispiel-geraete.example">Beispiel Medizingeräte SE</a></li>
+      <li>
+        <!-- No company name anywhere: the domain has to stand in, and say so. -->
+        <a href="https://beispiel-verpackung.example">Website</a>
+      </li>
+    </ul>
+  </main>
+
+  <aside class="sponsors">
+    <h2>Mit freundlicher Unterstützung</h2>
+    <a href="https://sponsor-bank.example">Sponsor Bank</a>
+    <a href="https://sponsor-messe.example">Sponsor Messe</a>
+  </aside>
+
+  <footer>
+    <a href="https://www.linkedin.com/company/verband">LinkedIn</a>
+    <a href="https://twitter.com/verband">Twitter</a>
+    <a href="https://www.webagentur.example">Umsetzung: Webagentur</a>
+    <a href="/impressum">Impressum</a>
+  </footer>
+</body>
+</html>
