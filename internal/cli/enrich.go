@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ import (
 	"github.com/iobyte-labs/eu-company-discovery/pkg/extract"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/fetch"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/model"
+	"github.com/iobyte-labs/eu-company-discovery/pkg/normalize"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/store"
 )
 
@@ -71,6 +73,7 @@ func newEnrichCmd(opts *globals) *cobra.Command {
 		cacheDir      string
 		noCache       bool
 		requestsPer   float64
+		concurrency   int
 		recheck       bool
 		onlyCompanyID string
 	)
@@ -151,38 +154,55 @@ func newEnrichCmd(opts *globals) *cobra.Command {
 
 			clock := newDeadline(deadlineFor)
 			summary := enrichSummary{}
-			for _, company := range companies {
-				if err := cmd.Context().Err(); err != nil {
-					return err
-				}
-				if clock.passed() {
-					summary.stoppedEarly = true
-					fmt.Fprintf(out, "\nStopped after %s to finish inside the run's time "+
-						"budget; %d company/companies were not visited. Run enrich again to "+
-						"continue with them.\n", deadlineFor, len(companies)-summary.visited)
-					break
-				}
-				summary.visited++
-				visit := visitCompany(cmd.Context(), fetcher, company, pagesPer)
-				reportVisit(out, company, visit, dryRun)
-				summary.add(visit)
 
-				if dryRun {
+			// Workers visit; they never write. Every store write happens here, in the
+			// collector, which keeps the single-writer database free of contention, keeps
+			// one company's output block together, and leaves one place where a failure is
+			// attributed.
+			var writeErr error
+			for outcome := range visitAll(cmd.Context(), fetcher, companies, pagesPer,
+				concurrency, clock) {
+				if outcome.visit.abandoned {
+					summary.abandoned++
 					continue
 				}
-				recorded, err := db.RecordEnrichment(cmd.Context(), company.ID, store.Enrichment{
-					CareersURL:  visit.careersURL,
-					Contacts:    visit.contacts,
-					CrawlStatus: visit.status,
-					CrawlError:  visit.statusDetail,
-					CheckedAt:   visit.checkedAt,
-				})
+				summary.visited++
+				reportVisit(out, outcome.company, outcome.visit, dryRun)
+				summary.add(outcome.visit)
+
+				if dryRun || writeErr != nil {
+					continue
+				}
+				recorded, err := db.RecordEnrichment(cmd.Context(), outcome.company.ID,
+					store.Enrichment{
+						CareersURL:  outcome.visit.careersURL,
+						Contacts:    outcome.visit.contacts,
+						CrawlStatus: outcome.visit.status,
+						CrawlError:  outcome.visit.statusDetail,
+						CheckedAt:   outcome.visit.checkedAt,
+					})
 				if err != nil {
-					return eucderrors.Wrap(eucderrors.KindGeneral, err,
-						"record enrichment for %q", company.Name)
+					// Keep draining rather than returning: the workers are still running,
+					// and abandoning them here would leak goroutines and lose the visits
+					// already paid for.
+					writeErr = eucderrors.Wrap(eucderrors.KindGeneral, err,
+						"record enrichment for %q", outcome.company.Name)
+					continue
 				}
 				summary.contactsRecorded += recorded.ContactsRecorded
 				summary.contactsRejected += recorded.ContactsRejected
+			}
+			if writeErr != nil {
+				return writeErr
+			}
+			if err := cmd.Context().Err(); err != nil {
+				return err
+			}
+			if clock.passed() {
+				summary.stoppedEarly = true
+				fmt.Fprintf(out, "\nStopped after %s to finish inside the run's time budget; "+
+					"%d company/companies were not visited. Run enrich again to continue "+
+					"with them.\n", deadlineFor, len(companies)-summary.visited)
 			}
 
 			summary.print(out, dryRun, clock)
@@ -202,6 +222,8 @@ func newEnrichCmd(opts *globals) *cobra.Command {
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "do not read or write the page cache")
 	cmd.Flags().Float64Var(&requestsPer, "requests-per-minute", fetch.DefaultRequestsPerMin,
 		"per-domain request rate")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 4,
+		"how many companies to visit at once; the per-domain rate limit is unaffected")
 	cmd.Flags().BoolVar(&recheck, "recheck", false,
 		"also revisit companies that already have a contact or have already been visited")
 	cmd.Flags().StringVar(&onlyCompanyID, "company", "", "only this company id")
@@ -220,6 +242,11 @@ type visit struct {
 	refused      []string
 	missing      int
 	dropped      int
+	// abandoned is set when the run was cancelled while this company was in flight. Such a
+	// visit is discarded rather than recorded: writing a crawl_error for it would mark a
+	// perfectly good site as failed, and every deadline-truncated run would poison the tail
+	// of the work queue with failures that never happened.
+	abandoned bool
 }
 
 // visitCompany fetches a bounded number of pages of one company's own site.
@@ -317,6 +344,12 @@ func visitCompany(
 // server that has already said no, four more times.
 func (v *visit) classify(target string, err error) (stop bool) {
 	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		// Our own clock, not the site's doing. Recording this as an error would blame a
+		// company for a deadline we set, and the next run would see a failure that never
+		// happened. The caller discards an abandoned visit entirely.
+		v.abandoned = true
+		return true
 	case eucderrors.IsBlocked(err):
 		reason, _ := eucderrors.BlockedReason(err)
 		v.blocked = append(v.blocked, reason)
@@ -447,6 +480,7 @@ type enrichSummary struct {
 	dropped          int
 	contactsRecorded int
 	contactsRejected int
+	abandoned        int
 	stoppedEarly     bool
 }
 
@@ -478,6 +512,12 @@ func (s *enrichSummary) print(out io.Writer, dryRun bool, clock *deadline) {
 	if s.dropped > 0 {
 		fmt.Fprintf(out, "%d address(es) naming an individual were found and dropped\n", s.dropped)
 	}
+	if s.abandoned > 0 {
+		// Said out loud because it is the one number that looks like a failure and is not:
+		// these companies are untouched and will be picked up first next time.
+		fmt.Fprintf(out, "%d company/companies were in flight when the deadline passed; "+
+			"they were left untouched for the next run\n", s.abandoned)
+	}
 	if dryRun {
 		fmt.Fprintln(out, "dry run: nothing was written")
 		return
@@ -490,4 +530,116 @@ func (s *enrichSummary) print(out io.Writer, dryRun bool, clock *deadline) {
 	if !s.stoppedEarly && clock.limit > 0 {
 		fmt.Fprintf(out, "%s of the time budget was left\n", clock.remaining())
 	}
+}
+
+// outcome pairs a company with what visiting its site yielded.
+type outcome struct {
+	company model.Company
+	visit   visit
+}
+
+// visitAll visits companies with a bounded number in flight and returns a channel of
+// outcomes, closed when every worker has finished.
+//
+// Work is partitioned by registrable domain, and one worker owns a whole domain. The
+// fetcher's rate limit is per domain, so two workers holding two companies on the same
+// domain would queue behind each other while each occupied a slot — politeness would be
+// preserved and throughput would quietly collapse to one. Partitioning keeps the unit of
+// parallelism and the unit of rate limiting the same thing.
+func visitAll(
+	ctx context.Context, fetcher *fetch.Fetcher, companies []model.Company,
+	pagesPerCompany, concurrency int, clock *deadline,
+) <-chan outcome {
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	groups := groupByDomain(companies)
+	if concurrency > len(groups) {
+		concurrency = len(groups)
+	}
+
+	// Cancelled when the deadline passes, so a request already in flight is abandoned
+	// rather than held onto. Without this the run overruns its deadline by however long the
+	// slowest in-flight fetch takes, and the steps after it — exporting and saving what was
+	// found — may never run at all.
+	runCtx, cancel := context.WithCancel(ctx)
+
+	jobs := make(chan []model.Company)
+	outcomes := make(chan outcome)
+
+	go func() {
+		defer close(jobs)
+		for _, group := range groups {
+			if clock.passed() || runCtx.Err() != nil {
+				return
+			}
+			select {
+			case jobs <- group:
+			case <-runCtx.Done():
+				return
+			}
+		}
+	}()
+
+	var workers sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for group := range jobs {
+				for _, company := range group {
+					// The deadline is checked between companies, never inside one, so a
+					// site is never left half-read.
+					if clock.passed() {
+						cancel()
+						return
+					}
+					if runCtx.Err() != nil {
+						return
+					}
+					result := visitCompany(runCtx, fetcher, company, pagesPerCompany)
+					if runCtx.Err() != nil && ctx.Err() == nil {
+						// Cut short by our own deadline rather than by the operator. The
+						// company stays as it was, to be picked up by the next run.
+						result = visit{abandoned: true}
+					}
+					select {
+					case outcomes <- outcome{company: company, visit: result}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	go func() {
+		workers.Wait()
+		cancel()
+		close(outcomes)
+	}()
+	return outcomes
+}
+
+// groupByDomain gathers each registrable domain's companies together, keeping the order
+// they arrived in so that a run capped by a deadline always starts from the same end of the
+// queue. A company with no usable domain is its own group.
+func groupByDomain(companies []model.Company) [][]model.Company {
+	order := make([]string, 0, len(companies))
+	byDomain := make(map[string][]model.Company, len(companies))
+	for _, company := range companies {
+		key := normalize.CanonicalDomain(company.Website)
+		if key == "" {
+			key = "company:" + company.ID
+		}
+		if _, seen := byDomain[key]; !seen {
+			order = append(order, key)
+		}
+		byDomain[key] = append(byDomain[key], company)
+	}
+	groups := make([][]model.Company, 0, len(order))
+	for _, key := range order {
+		groups = append(groups, byDomain[key])
+	}
+	return groups
 }

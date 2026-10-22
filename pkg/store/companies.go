@@ -324,6 +324,16 @@ func mergeCompanyTx(
 		checkedAt = sql.NullString{String: c.LastCheckedAt.Format(time.RFC3339), Valid: true}
 	}
 
+	// Nothing learned, nothing written. Re-seeing a company in a directory it is already
+	// listed in is the common case, and touching updated_at for it would make every
+	// exported file differ on every run — which costs the export its worth as a review
+	// surface, because "no diff" could never mean "nothing changed". It also saves a write
+	// per unchanged company on every pass.
+	if sameCompanyRow(existing, merged, storedLists{languages, sectors, keywords},
+		lastChecked, checkedAt) {
+		return nil
+	}
+
 	_, err = tx.ExecContext(ctx,
 		`UPDATE companies SET
 		    name = ?, normalized_name = ?, region = ?, website = ?, canonical_domain = ?,
@@ -340,6 +350,35 @@ func mergeCompanyTx(
 		return fmt.Errorf("update company %s: %w", companyID, err)
 	}
 	return nil
+}
+
+// storedLists holds the JSON columns as they are on disk. The scan reads them as text, so
+// the comparison is against that text rather than against a decoded slice — and it is exact,
+// because every write goes through encodeJSON.
+type storedLists struct{ languages, sectors, keywords string }
+
+// sameCompanyRow reports whether a merge produced exactly what is already stored.
+//
+// It compares what the UPDATE below would write, field for field, rather than trusting the
+// merge to have been a no-op: several of the merge rules (preferLonger, unionStrings,
+// bestQuality) legitimately return the existing value, and only a comparison can tell.
+func sameCompanyRow(
+	existing, merged model.Company, stored storedLists, storedChecked, mergedChecked sql.NullString,
+) bool {
+	return existing.Name == merged.Name &&
+		existing.Region == merged.Region &&
+		existing.Website == merged.Website &&
+		existing.CanonicalDomain == merged.CanonicalDomain &&
+		existing.Description == merged.Description &&
+		existing.SizeBucket == merged.SizeBucket &&
+		existing.CareersURL == merged.CareersURL &&
+		existing.Quality == merged.Quality &&
+		existing.CrawlStatus == merged.CrawlStatus &&
+		existing.CrawlError == merged.CrawlError &&
+		stored.languages == encodeJSON(merged.Languages) &&
+		stored.sectors == encodeJSON(merged.Sectors) &&
+		stored.keywords == encodeJSON(merged.Keywords) &&
+		storedChecked == mergedChecked
 }
 
 func upsertSourceTx(

@@ -443,3 +443,34 @@ func TestGetHonoursACancelledContext(t *testing.T) {
 		t.Fatal("a cancelled fetch returned no error")
 	}
 }
+
+func TestRobotsIsConsultedBeforeTheCache(t *testing.T) {
+	// A cached body is still the site's content. If robots has since disallowed the path,
+	// serving the cached copy would honour the letter of "we made no request" while
+	// ignoring what the file asks.
+	var disallow atomic.Bool
+	server := serve(t, map[string]http.HandlerFunc{
+		"/robots.txt": func(w http.ResponseWriter, _ *http.Request) {
+			if disallow.Load() {
+				_, _ = fmt.Fprint(w, "User-agent: *\nDisallow: /members\n")
+				return
+			}
+			http.NotFound(w, nil)
+		},
+		"/members": html("<html><body>members</body></html>"),
+	})
+	cacheDir := t.TempDir()
+
+	first := testFetcher(t, server, Options{CacheDir: cacheDir})
+	if _, err := first.Get(context.Background(), server.URL+"/members"); err != nil {
+		t.Fatalf("first fetch: %v", err)
+	}
+
+	// The page is now cached. The site changes its mind.
+	disallow.Store(true)
+	second := testFetcher(t, server, Options{CacheDir: cacheDir})
+	_, err := second.Get(context.Background(), server.URL+"/members")
+	if !eucderrors.IsBlocked(err) {
+		t.Fatalf("err = %v, want the now-disallowed path to be refused from the cache too", err)
+	}
+}
