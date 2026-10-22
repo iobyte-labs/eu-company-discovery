@@ -431,6 +431,13 @@ func Email(address string) string {
 	if domain == "" || !strings.Contains(domain, ".") {
 		return ""
 	}
+	// A real top-level domain is all letters, or punycode beginning "xn--". A page that
+	// yields "name@1.5x" has given us a version number or a price, not an address, and
+	// storing it would put a fact in the dataset that was never one. Checking only for a
+	// letter somewhere is not enough: "5x" has one.
+	if !isTopLevelDomain(domain[strings.LastIndex(domain, ".")+1:]) {
+		return ""
+	}
 	return strings.ToLower(local) + "@" + domain
 }
 
@@ -504,6 +511,42 @@ func ClassifyLocalPart(address string) string {
 	}
 }
 
+// givenNames are first names common in the countries this engine covers. It exists only to
+// exclude: an address whose whole local part is one of these is a person's, however it is
+// spelled, and the engine does not keep it.
+//
+// Deliberately not exhaustive and never will be. Its job is to catch the ordinary case —
+// "christoph@", "marie@" — that the separator rules below cannot see. A name missing from
+// it leaves things exactly as they were, which is why adding to it is always safe.
+var givenNames = set(
+	"alex", "alexander", "alexandra", "andre", "andrea", "andreas", "angela", "anja", "anke",
+	"anna", "anne", "annette", "antoine", "anton", "barbara", "bastian", "beate", "benjamin",
+	"bernd", "bernhard", "birgit", "brigitte", "bruno", "carl", "carla", "carmen", "caroline",
+	"catherine", "charlotte", "chris", "christian", "christiane", "christina", "christine",
+	"christoph", "christophe", "claire", "claudia", "claudio", "clemens", "daniel", "daniela",
+	"david", "denis", "dieter", "dirk", "dominik", "dominique", "doris", "eduard", "elena",
+	"elisabeth", "emilie", "emma", "erik", "ernst", "eva", "fabian", "felix", "florian",
+	"francois", "frank", "franz", "frederic", "friedrich", "gabriele", "georg", "george",
+	"gerd", "gerhard", "gisela", "guido", "gunter", "hannah", "hanna", "hans", "harald",
+	"heike", "heinrich", "heinz", "helena", "helga", "helmut", "henning", "herbert", "hermann",
+	"holger", "ingrid", "jakob", "james", "jan", "jana", "jean", "jens", "jessica", "joachim",
+	"johann", "johanna", "johannes", "john", "jonas", "jorg", "josef", "julia", "julian",
+	"julien", "jurgen", "karin", "karl", "katharina", "kathrin", "katja", "kerstin", "klaus",
+	"konstantin", "kristin", "larissa", "laura", "laurent", "lena", "leon", "linda", "lisa",
+	"lorenz", "louis", "luca", "lucas", "ludwig", "luisa", "lukas", "manfred", "manuel",
+	"marc", "marcel", "marco", "marcus", "margarete", "maria", "marie", "marina", "marion",
+	"mark", "marko", "markus", "martin", "martina", "mathias", "matthias", "max", "maximilian",
+	"melanie", "michael", "michaela", "michel", "mike", "monika", "nadine", "natalie",
+	"nicolas", "nicole", "niklas", "nina", "norbert", "olaf", "oliver", "otto", "patrick",
+	"paul", "paula", "peter", "petra", "philipp", "philippe", "pierre", "rainer", "ralf",
+	"ralph", "rebecca", "regina", "reinhard", "renate", "rene", "richard", "robert", "roland",
+	"rolf", "rudolf", "ruth", "sabine", "sandra", "sarah", "sascha", "sebastian", "silke",
+	"simon", "simone", "sofia", "sonja", "sophie", "stefan", "stefanie", "steffen", "stephan",
+	"stephanie", "susanne", "sven", "sylvia", "tanja", "thomas", "thorsten", "tim", "tobias",
+	"tom", "torsten", "ulrich", "ulrike", "ursula", "uwe", "vanessa", "verena", "victor",
+	"viktor", "vincent", "walter", "werner", "wilhelm", "wolfgang", "yvonne",
+)
+
 // LooksPersonal reports whether a local part looks like a named individual rather than a
 // function.
 //
@@ -519,6 +562,13 @@ func LooksPersonal(address string) bool {
 		return false
 	}
 	parts := splitNonEmpty(strings.ToLower(local))
+	// A single given name is a person too. "christoph@" and "lorenz@" were being stored
+	// because the rules below only recognised a name when a separator split it into two
+	// parts. A list cannot be complete, and does not need to be: it only has to make the
+	// common case fail safe, and a name it misses is no worse than before.
+	if len(parts) == 1 && givenNames[parts[0]] {
+		return true
+	}
 	if len(parts) == 2 && len(parts[0]) == 1 && isAlpha(parts[1]) {
 		return true // "j.dupont"
 	}
@@ -526,7 +576,35 @@ func LooksPersonal(address string) bool {
 		isAlpha(parts[1]) && len(parts[1]) >= 2 {
 		return true // "marie.dupont", "marie-claire.dupont"
 	}
+	// Known gap, stated rather than hidden: an initial run together with a surname —
+	// "dschaefer", "fdehn", "mivy" — is a person's address and is not caught. There is no
+	// separator to find, the surname is not in any list, and the shapes that would match
+	// it also match "biochem", "mailbox" and every company that mails from its own name.
+	// Catching it would need a surname list or a judgement, and dropping real contacts to
+	// chase it would be the worse trade. Live examples sit at law firms, which are rarely
+	// what this engine is looking for.
 	return false
+}
+
+// isTopLevelDomain reports whether a final label could be a real TLD: letters throughout,
+// or an internationalised one, which is always punycode.
+func isTopLevelDomain(label string) bool {
+	if len(label) < 2 {
+		return false
+	}
+	if strings.HasPrefix(label, "xn--") {
+		return true
+	}
+	for _, r := range label {
+		if !isASCIILetter(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isASCIILetter(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
 
 func isAlpha(s string) bool {

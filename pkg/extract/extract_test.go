@@ -293,3 +293,46 @@ func TestFromPageDoesNotInventAddressesByGluingElements(t *testing.T) {
 		}
 	}
 }
+
+// A company's own pages are full of other companies' addresses: the processor named in a
+// privacy notice, the applicant-tracking vendor behind the careers page, the agency in the
+// footer. Recording one of those says a company can be reached somewhere it never said it
+// could, with provenance claiming it published it. Found in live data, where two German
+// manufacturers had been given OpenAI's data-protection address.
+func TestFromPageKeepsOnlyTheCompanysOwnAddresses(t *testing.T) {
+	result := FromPage(
+		page(t, "site/thirdparty.html", "https://beispiel-pharma.example/datenschutz"),
+		"https://beispiel-pharma.example")
+
+	got := addresses(result.Contacts)
+	sort.Strings(got)
+	want := []string{
+		"bewerbung@beispiel-pharma.example",
+		"info@beispiel-pharma-group.example", // a sibling domain of the same brand is kept
+		"kontakt@beispiel-pharma.example",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("addresses = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("address %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+	for _, address := range got {
+		for _, foreign := range []string{"someprocessor", "recruitingvendor", "webagentur"} {
+			if strings.Contains(address, foreign) {
+				t.Errorf("%q belongs to somebody else and was kept", address)
+			}
+		}
+	}
+	if result.DroppedOffBrand != 3 {
+		t.Errorf("DroppedOffBrand = %d, want 3", result.DroppedOffBrand)
+	}
+	// "netdoctor2@1.5x" is a version number and a price, not an address.
+	for _, address := range got {
+		if strings.HasSuffix(address, ".5x") {
+			t.Errorf("%q has no real top-level domain and was kept", address)
+		}
+	}
+}

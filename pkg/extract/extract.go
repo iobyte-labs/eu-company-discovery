@@ -43,6 +43,9 @@ type Result struct {
 	// individual. Counted, never recorded: a page with ten named employees and no
 	// functional mailbox should look different from a page with no addresses at all.
 	DroppedPersonal int
+	// DroppedOffBrand counts addresses that belonged to somebody else — a vendor named in
+	// a privacy notice, an applicant-tracking system, a partner.
+	DroppedOffBrand int
 }
 
 // candidatePath is one path worth trying on a company's own site, in the order they are
@@ -192,7 +195,8 @@ func FromPage(page *directory.Page, companyWebsite string) Result {
 		})
 	}
 
-	result.Contacts, result.DroppedPersonal = contactsFrom(addresses, page)
+	result.Contacts, result.DroppedPersonal, result.DroppedOffBrand =
+		contactsFrom(addresses, page, site)
 	result.CareersURLs = careersLinks(document, page, site)
 	return result
 }
@@ -261,20 +265,30 @@ func mailtoAddress(href string) string {
 	return raw
 }
 
-// contactsFrom turns addresses into contacts, dropping every one that names a person.
-func contactsFrom(addresses []string, page *directory.Page) ([]model.Contact, int) {
+// contactsFrom turns addresses into contacts, dropping every one that names a person or
+// belongs to somebody else.
+func contactsFrom(
+	addresses []string, page *directory.Page, site string,
+) (contacts []model.Contact, personal, offBrand int) {
 	seen := map[string]bool{}
-	var contacts []model.Contact
-	dropped := 0
 	for _, address := range addresses {
 		if address == "" || seen[address] {
 			continue
 		}
 		seen[address] = true
+		// A company's own pages carry other companies' addresses: the data-protection
+		// officer named in a privacy notice, the applicant-tracking system behind a
+		// careers page, an agency in a footer. Recording those as this company's contact
+		// attributes an address to a company that never published it — the dataset would
+		// say a German manufacturer can be reached at a software vendor's inbox.
+		if !sameBrand(address, site, page.URL) {
+			offBrand++
+			continue
+		}
 		// The first of the two layers. The store refuses these again; see
 		// docs/knowledge-concepts.md §4.
 		if normalize.LooksPersonal(address) {
-			dropped++
+			personal++
 			continue
 		}
 		contacts = append(contacts, model.Contact{
@@ -288,7 +302,84 @@ func contactsFrom(addresses []string, page *directory.Page) ([]model.Contact, in
 		})
 	}
 	sortContacts(contacts)
-	return contacts, dropped
+	return contacts, personal, offBrand
+}
+
+// genericBrandWords appear in so many company names and domains that sharing one is not
+// evidence of anything.
+var genericBrandWords = map[string]bool{
+	"pharma": true, "pharmaceutical": true, "pharmaceuticals": true, "group": true,
+	"gmbh": true, "health": true, "healthcare": true, "care": true, "med": true,
+	"medical": true, "medizin": true, "deutschland": true, "germany": true, "france": true,
+	"international": true, "holding": true, "consulting": true, "services": true,
+	"service": true, "solutions": true, "labor": true, "lab": true, "labs": true,
+	"company": true, "europe": true, "global": true, "online": true, "shop": true,
+}
+
+// sameBrand reports whether an address plausibly belongs to the company whose page it was
+// read from.
+//
+// Not "the same registrable domain": a company routinely answers at a sibling domain, and
+// info@diapharm.de on diapharm.com is plainly the same company. What is being tested is
+// whether the address's domain shares a distinctive word with the company's own domain or
+// the page it was read from — which diapharm.de does, and openai.com does not.
+func sameBrand(address, site, pageURL string) bool {
+	// The registrable domain on both sides, so a host and a domain are never compared
+	// against each other: mail.diapharm.de and diapharm.de are the same company.
+	domain := normalize.CanonicalDomain(normalize.EmailDomain(address))
+	if domain == "" {
+		return false
+	}
+	for _, known := range []string{site, pageURL} {
+		knownDomain := normalize.CanonicalDomain(known)
+		if knownDomain == "" {
+			continue
+		}
+		if knownDomain == domain {
+			return true
+		}
+		if shareBrandWord(brandWords(domain), brandWords(knownDomain)) {
+			return true
+		}
+	}
+	return false
+}
+
+// brandWords reduces a domain to the distinctive words in its registrable name.
+func brandWords(domain string) []string {
+	name := domain
+	if dot := strings.Index(name, "."); dot > 0 {
+		name = name[:dot]
+	}
+	var words []string
+	for _, word := range strings.FieldsFunc(name, func(r rune) bool {
+		return r == '-' || r == '_'
+	}) {
+		if len(word) > 2 && !genericBrandWords[word] {
+			words = append(words, word)
+		}
+	}
+	// The whole label counts too, so "haenseler" matches "haenseler-pharma".
+	if len(name) > 2 && !genericBrandWords[name] {
+		words = append(words, name)
+	}
+	return words
+}
+
+func shareBrandWord(a, b []string) bool {
+	for _, left := range a {
+		for _, right := range b {
+			if left == right {
+				return true
+			}
+			// One brand inside another: "hwi" in "hwi-group", "medac" in "medacpharma".
+			if len(left) > 3 && len(right) > 3 &&
+				(strings.Contains(left, right) || strings.Contains(right, left)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 var kindOrder = map[model.ContactKind]int{

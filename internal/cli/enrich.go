@@ -242,6 +242,7 @@ type visit struct {
 	refused      []string
 	missing      int
 	dropped      int
+	offBrand     int
 	// abandoned is set when the run was cancelled while this company was in flight. Such a
 	// visit is discarded rather than recorded: writing a crawl_error for it would mark a
 	// perfectly good site as failed, and every deadline-truncated run would poison the tail
@@ -302,6 +303,7 @@ func visitCompany(
 
 		found := extract.FromPage(page, company.Website)
 		result.dropped += found.DroppedPersonal
+		result.offBrand += found.DroppedOffBrand
 		result.contacts = appendContacts(result.contacts, found.Contacts)
 		if result.careersURL == "" && len(found.CareersURLs) > 0 {
 			result.careersURL = found.CareersURLs[0]
@@ -455,6 +457,10 @@ func reportVisit(out io.Writer, company model.Company, result visit, dryRun bool
 		// Counted, never recorded: the engine does not store an individual's address.
 		fmt.Fprintf(out, "  %d address(es) naming an individual were dropped\n", result.dropped)
 	}
+	if result.offBrand > 0 {
+		fmt.Fprintf(out, "  %d address(es) belonging to another company were dropped\n",
+			result.offBrand)
+	}
 	if len(result.contacts) == 0 && len(result.blocked) == 0 && len(result.refused) == 0 {
 		if result.status == model.CrawlError {
 			// Whatever went wrong is recorded against the company, so it has to be visible
@@ -478,6 +484,7 @@ type enrichSummary struct {
 	errored          int
 	careers          int
 	dropped          int
+	offBrand         int
 	contactsRecorded int
 	contactsRejected int
 	abandoned        int
@@ -492,6 +499,7 @@ func (s *enrichSummary) add(result visit) {
 		s.careers++
 	}
 	s.dropped += result.dropped
+	s.offBrand += result.offBrand
 	switch result.status {
 	case model.CrawlBlocked:
 		s.blocked++
@@ -511,6 +519,10 @@ func (s *enrichSummary) print(out io.Writer, dryRun bool, clock *deadline) {
 	}
 	if s.dropped > 0 {
 		fmt.Fprintf(out, "%d address(es) naming an individual were found and dropped\n", s.dropped)
+	}
+	if s.offBrand > 0 {
+		fmt.Fprintf(out, "%d address(es) belonging to another company were found and dropped\n",
+			s.offBrand)
 	}
 	if s.abandoned > 0 {
 		// Said out loud because it is the one number that looks like a failure and is not:

@@ -218,3 +218,45 @@ func TestStripAccents(t *testing.T) {
 		t.Errorf("StripAccents = %q", got)
 	}
 }
+
+func TestEmailRefusesWhatIsNotAnAddress(t *testing.T) {
+	// "netdoctor2@1.5x" came out of a live page: a version number and a price sitting next
+	// to each other. Checking that the final label merely contains a letter is not enough,
+	// because "5x" has one.
+	for _, notAnAddress := range []string{
+		"netdoctor2@1.5x", "a@b.2", "x@y.123", "someone@host.9",
+	} {
+		if got := Email(notAnAddress); got != "" {
+			t.Errorf("Email(%q) = %q, want it refused", notAnAddress, got)
+		}
+	}
+	// Internationalised domains are punycode and must still be accepted.
+	for _, real := range []string{"info@acme.de", "info@acme.xn--p1ai", "info@acme.co.uk"} {
+		if got := Email(real); got == "" {
+			t.Errorf("Email(%q) was refused", real)
+		}
+	}
+}
+
+func TestLooksPersonalCatchesABareGivenName(t *testing.T) {
+	// Found in live data: christoph@ and lorenz@ had been stored, because the rules only
+	// recognised a name when a separator split it in two.
+	for _, personal := range []string{
+		"christoph@acme.fr", "lorenz@acme.fr", "marie@acme.fr", "sebastian@acme.fr",
+		"j.dupont@acme.fr", "marie.dupont@acme.fr",
+	} {
+		if !LooksPersonal(personal) {
+			t.Errorf("LooksPersonal(%q) = false, want true", personal)
+		}
+	}
+	// And still keeps the functional ones, including those that merely look name-shaped.
+	for _, functional := range []string{
+		"info@acme.fr", "kontakt@acme.fr", "bewerbung@acme.fr", "hr-de@acme.fr",
+		"info.de@acme.fr", "pharma-contact@acme.fr", "people.culture@acme.fr",
+		"berlin@acme.fr", "b2b@acme.fr", "mailbox@acme.fr",
+	} {
+		if LooksPersonal(functional) {
+			t.Errorf("LooksPersonal(%q) = true, want false", functional)
+		}
+	}
+}
