@@ -599,9 +599,14 @@ func (s *Store) loadCompanies(
 	if err != nil {
 		return nil, err
 	}
+	labels, err := s.labelsFor(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range companies {
 		companies[i].Contacts = contacts[companies[i].ID]
 		companies[i].Sources = sources[companies[i].ID]
+		companies[i].Labels = labels[companies[i].ID]
 	}
 	return companies, nil
 }

@@ -184,6 +184,43 @@ func (c Contact) Validate() error {
 	return nil
 }
 
+// Label is a judgement about a company, as opposed to a fact read off a page.
+//
+// The distinction is the point. A [Contact] marked [VerificationPublished] says an address
+// appeared on a named page: evidence. A Label says someone — today, a language model —
+// formed an opinion about what this company is. Being wrong about a label costs a wasted
+// visit; being wrong about a contact puts a fact in the dataset that was never true.
+//
+// Labels are therefore kept in their own table, exported under their own key, and are
+// disposable: every label of one kind can be deleted and recomputed. Nothing in the engine
+// may turn a Label into a Contact, a sector or a quality.
+type Label struct {
+	// Kind is the question that was asked, e.g. "sector_membership".
+	Kind string `json:"kind"`
+	// Label is the answer, from a vocabulary the asking code defines.
+	Label string `json:"label"`
+	// Reason is the one-line explanation. A judgement nobody can review is not useful.
+	Reason string `json:"reason,omitempty"`
+	// Source names what produced it — a model id, or a person — so that everything one
+	// source decided can be found and discarded together.
+	Source    string    `json:"source"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Validate refuses a label that could not be reviewed or attributed.
+func (l Label) Validate() error {
+	if strings.TrimSpace(l.Kind) == "" {
+		return fmt.Errorf("label has no kind")
+	}
+	if strings.TrimSpace(l.Label) == "" {
+		return fmt.Errorf("label %q has no value", l.Kind)
+	}
+	if strings.TrimSpace(l.Source) == "" {
+		return fmt.Errorf("label %q names no source, so nobody can tell what decided it", l.Kind)
+	}
+	return nil
+}
+
 // Source is one directory listing that produced or confirmed a company.
 type Source struct {
 	AssociationSlug string    `json:"association_slug"`
@@ -198,27 +235,30 @@ type Source struct {
 // changes afterwards. Learning the company's domain later adds an identity pointing at the
 // same ID rather than renaming it, which is what makes repeated runs idempotent.
 type Company struct {
-	ID              string      `json:"company_id"`
-	Name            string      `json:"name"`
-	NormalizedName  string      `json:"normalized_name"`
-	Country         string      `json:"country"`
-	Region          string      `json:"region,omitempty"`
-	Website         string      `json:"website,omitempty"`
-	CanonicalDomain string      `json:"canonical_domain,omitempty"`
-	Description     string      `json:"description,omitempty"`
-	SizeBucket      string      `json:"size_bucket,omitempty"`
-	Languages       []string    `json:"languages,omitempty"`
-	Sectors         []string    `json:"sectors,omitempty"`
-	Keywords        []string    `json:"keywords,omitempty"`
-	CareersURL      string      `json:"careers_url,omitempty"`
-	Contacts        []Contact   `json:"contacts,omitempty"`
-	Sources         []Source    `json:"sources,omitempty"`
-	Quality         Quality     `json:"data_quality"`
-	CrawlStatus     CrawlStatus `json:"crawl_status"`
-	CrawlError      string      `json:"crawl_error,omitempty"`
-	FirstSeenAt     time.Time   `json:"first_seen_at"`
-	LastCheckedAt   *time.Time  `json:"last_checked_at,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
+	ID              string    `json:"company_id"`
+	Name            string    `json:"name"`
+	NormalizedName  string    `json:"normalized_name"`
+	Country         string    `json:"country"`
+	Region          string    `json:"region,omitempty"`
+	Website         string    `json:"website,omitempty"`
+	CanonicalDomain string    `json:"canonical_domain,omitempty"`
+	Description     string    `json:"description,omitempty"`
+	SizeBucket      string    `json:"size_bucket,omitempty"`
+	Languages       []string  `json:"languages,omitempty"`
+	Sectors         []string  `json:"sectors,omitempty"`
+	Keywords        []string  `json:"keywords,omitempty"`
+	CareersURL      string    `json:"careers_url,omitempty"`
+	Contacts        []Contact `json:"contacts,omitempty"`
+	Sources         []Source  `json:"sources,omitempty"`
+	// Labels are judgements, not observations. Kept under their own key so a consumer can
+	// tell at a glance which is which. See [Label].
+	Labels        []Label     `json:"labels,omitempty"`
+	Quality       Quality     `json:"data_quality"`
+	CrawlStatus   CrawlStatus `json:"crawl_status"`
+	CrawlError    string      `json:"crawl_error,omitempty"`
+	FirstSeenAt   time.Time   `json:"first_seen_at"`
+	LastCheckedAt *time.Time  `json:"last_checked_at,omitempty"`
+	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
 // BestContact returns the contact most appropriate to approach, and whether one exists.
