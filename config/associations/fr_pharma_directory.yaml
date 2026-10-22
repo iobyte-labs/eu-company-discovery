@@ -11,10 +11,11 @@
 # not deleted. A future reader needs to know it was considered and why it was not used,
 # otherwise the same dead end gets rediscovered every few months.
 #
-# The html_directory adapter arrives in Phase 2. A disabled source is allowed to name an
-# adapter that does not exist yet, which is exactly so that a worked example like this can
-# be kept rather than deleted; `eucd config validate` checks adapter names only for enabled
-# sources.
+# The html_directory adapter this file names is built and registered — `eucd adapters` lists
+# it. What is missing is a real source: this one stays disabled until somebody has checked
+# that an actual directory may be read. A disabled source is also allowed to name an adapter
+# that does not exist yet, so a worked example can be kept rather than deleted;
+# `eucd config validate` checks adapter names only for enabled sources.
 
 slug: fr_pharma_directory
 name: French pharmaceutical industry directory (example)

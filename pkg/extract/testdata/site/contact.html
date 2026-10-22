@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  A recorded shape of a company contact page. Every address and domain is on example.org:
+  this repository holds no real contact data, and a fixture that looked like real harvested
+  data would be worse than an obvious placeholder.
+
+  It carries, on purpose, one of each case the extractor has to get right:
+    - a functional recruitment address as a mailto:, percent-encoded
+    - a general inbox in the visible text
+    - an address obfuscated against scrapers
+    - two named individuals, which must be dropped rather than stored
+    - an address belonging to an analytics vendor, inside a <script>
+-->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Contact — Exemple Pharma</title>
+  <script>
+    window.errorReporting = {dsn: "https://ingest.example.net", mailto: "alerts@vendor.example.org"};
+  </script>
+</head>
+<body>
+  <h1>Nous contacter</h1>
+
+  <p>Candidatures spontanées :
+     <a href="mailto:recrutement%40exemple-pharma.example.org?subject=Candidature">écrivez-nous</a>
+  </p>
+
+  <p>Accueil : contact@exemple-pharma.example.org</p>
+
+  <p>Service qualité : qualite (at) exemple-pharma [dot] example [dot] org</p>
+
+  <h2>Direction</h2>
+  <ul>
+    <li>Marie Dupont, directrice — marie.dupont@exemple-pharma.example.org</li>
+    <li>J. Martin, qualité — <a href="mailto:j.martin@exemple-pharma.example.org">écrire</a></li>
+  </ul>
+
+  <footer>
+    <a href="/carrieres">Carrières</a>
+    <a href="https://jobs.example.net/exemple-pharma">Nos offres sur un site d'emploi</a>
+    <a href="/mentions-legales">Mentions légales</a>
+  </footer>
+</body>
+</html>

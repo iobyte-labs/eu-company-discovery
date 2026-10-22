@@ -5,7 +5,10 @@
 // and never renumbered.
 package errors
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Kind identifies a class of failure. Its value is the process exit code.
 type Kind int
@@ -70,4 +73,40 @@ func Wrap(kind Kind, cause error, format string, args ...any) *Error {
 		return nil
 	}
 	return &Error{Kind: kind, Message: fmt.Sprintf(format, args...), Cause: cause}
+}
+
+// NewBlocked reports that a source refuses automated access.
+//
+// It lives here, rather than in the package that produces it, so that an adapter can
+// recognise a refusal without importing the fetcher — pkg/fetch has to import pkg/directory
+// to implement its Fetcher interface, so the dependency cannot go the other way.
+//
+// A refusal is a *result*, not a failure to retry: a caller turns it into a
+// directory.Blocked entry or a model.CrawlBlocked status and moves on. See
+// docs/knowledge-concepts.md §6.
+func NewBlocked(format string, args ...any) *Error {
+	return New(KindBlocked, format, args...)
+}
+
+// IsBlocked reports whether err is a source refusing automated access.
+func IsBlocked(err error) bool {
+	_, blocked := BlockedReason(err)
+	return blocked
+}
+
+// BlockedReason returns the reason a source gave for refusing access, and whether err was
+// such a refusal at all. The reason is meant to be recorded verbatim: "robots.txt disallows
+// /members" is what makes a blocked source actionable rather than mysterious.
+func BlockedReason(err error) (string, bool) {
+	var typed *Error
+	for errors.As(err, &typed) {
+		if typed.Kind == KindBlocked {
+			return typed.Error(), true
+		}
+		if typed.Cause == nil {
+			return "", false
+		}
+		err = typed.Cause
+	}
+	return "", false
 }

@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  A recorded shape of a member directory's first listing page. Every company and domain
+  here is a placeholder on example.org/example.net: this is a public repository, and a
+  fixture that looked like real harvested data would be worse than an obvious placeholder.
+-->
+<html lang="fr">
+<head><meta charset="utf-8"><title>Adhérents — page 1</title></head>
+<body>
+  <h1>Nos adhérents</h1>
+  <ul class="member-list">
+    <li class="member">
+      <h3 class="member-name">Exemple Pharma SAS</h3>
+      <a class="member-site" href="https://exemple-pharma.example.org">Site</a>
+      <span class="member-region">Île-de-France</span>
+      <p class="member-summary">Fabrication de formes sèches et contrôle qualité.</p>
+      <span class="member-class">Membre actif</span>
+    </li>
+    <li class="member">
+      <h3 class="member-name">Exemple Biotech SA</h3>
+      <!-- A relative link: the adapter has to resolve it against the page it was read from. -->
+      <a class="member-site" href="/redirect?to=exemple-biotech.example.net">Site</a>
+      <span class="member-region">Auvergne-Rhône-Alpes</span>
+      <p class="member-summary">Développement de biomédicaments.</p>
+    </li>
+    <li class="member">
+      <!-- No name. A row that matched the selector but carries no company name is reported
+           as a warning and skipped, never guessed at. -->
+      <a class="member-site" href="https://exemple-anonyme.example.org">Site</a>
+      <span class="member-region">Bretagne</span>
+    </li>
+    <li class="member">
+      <h3 class="member-name">Exemple Dispositifs Médicaux SARL</h3>
+      <!-- A javascript: link is not an http(s) url, so it is dropped with a warning
+           rather than stored as if it were a website. -->
+      <a class="member-site" href="javascript:void(0)">Site</a>
+      <p class="member-summary">Dispositifs médicaux stériles.</p>
+    </li>
+  </ul>
+  <nav class="pager">
+    <a rel="next" href="page2.html">Page suivante</a>
+  </nav>
+</body>
+</html>

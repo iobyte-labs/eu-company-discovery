@@ -54,6 +54,8 @@ eucd adapters                            # what this build can read
 eucd associations list --all             # configured sources, including disabled ones
 eucd discover --dry-run                  # read the sources, write nothing
 eucd discover                            # record what was found
+eucd enrich --dry-run --limit 10         # visit company sites, report what would be stored
+eucd enrich --deadline 45m               # record published contacts and careers pages
 eucd companies list --country fr
 eucd export --format json -o companies.json
 eucd db status
@@ -130,9 +132,14 @@ Phase 1 (foundation) is complete and tested: packaging, configuration, data mode
 and migrations, identity and deduplication, the SSRF guard, the adapter registry with the
 `seed_list` adapter, the versioned export, and the CLI.
 
-Not yet built: the fetching adapters (`html_directory`, `api_directory`, `dataset`, `exec`),
-contact extraction from live pages, deterministic ranking, and the optional OpenRouter
-provider. `eucd adapters` always tells the truth about what a build can actually do.
+Phase 2 (fetching and extraction) is complete and tested: the fetcher — guarded redirects,
+per-domain rate limiting, a response cap, robots.txt, an on-disk page cache — the
+`html_directory` and `exec` adapters, contact and careers-page extraction, and `eucd
+enrich`. Every test runs offline against recorded fixtures and local servers.
+
+Not yet built: the `api_directory` and `dataset` adapters, deterministic ranking, and the
+optional OpenRouter provider. `eucd adapters` always tells the truth about what a build can
+actually do.
 
 ## Exit codes
 

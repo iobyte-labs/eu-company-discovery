@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- A listing page whose "next" link leaves the directory's own site. Following it would
+     turn a bounded read of one directory into an open crawl of the web, so the adapter
+     stops and says why. -->
+<html lang="fr">
+<head><meta charset="utf-8"><title>Adhérents</title></head>
+<body>
+  <ul class="member-list">
+    <li class="member">
+      <h3 class="member-name">Exemple Unique SAS</h3>
+      <a class="member-site" href="https://exemple-unique.example.org">Site</a>
+    </li>
+  </ul>
+  <a rel="next" href="https://aggregator.example.net/members?page=2">Page suivante</a>
+</body>
+</html>
