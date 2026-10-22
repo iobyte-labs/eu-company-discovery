@@ -579,6 +579,7 @@ func newCompaniesCmd(opts *globals) *cobra.Command {
 	list.Flags().BoolVar(&withContact, "with-contact", false, "only companies with a contact")
 	list.Flags().IntVar(&limit, "limit", 50, "maximum rows (0 for no limit)")
 	cmd.AddCommand(list)
+	cmd.AddCommand(newCompaniesTopCmd(opts))
 	return cmd
 }
 

@@ -180,7 +180,12 @@ documentation.
 
 Ranking is keyword matching with weights, producing a score and a list of
 `model.Reason` values that say where every point came from. It runs with no network, no API
-key and no model.
+key and no model. It lives in `pkg/rank`, and `docs/ranking.md` explains the factors.
+
+Two properties make it reviewable rather than merely numeric. The points **sum to the
+score**, so an explanation that does not add up fails a test. And the ranker never reads
+`Company.Sources`, so a company is never scored for belonging to an association — that is
+how it was found, not evidence that it fits.
 
 An LLM is optional and additive: summarising what a company says about itself, mapping a
 description to skills, phrasing an explanation. If the key is missing, the model is
@@ -319,5 +324,6 @@ list is visible.
 
 - [`adapter-protocol.md`](adapter-protocol.md) — the three ways to add a source
 - [`byok-sending.md`](byok-sending.md) — mail credentials, and why a dispatch input leaks
+- [`ranking.md`](ranking.md) — the scoring factors, and how to tune a profile
 - [`compliance.md`](compliance.md) — GDPR and national practice
 - [`data-contract.md`](data-contract.md) — the export schema

@@ -1,0 +1,108 @@
+# Germany.
+#
+# Adding a country means adding a file like this one and nothing else — no engine change.
+# See docs/adding-a-country.md.
+
+code: de
+name: Germany
+languages: [de, en]
+
+# The sixteen Länder. Aliases carry the real weight here: directories print the German
+# name, the English name, and often just the largest city. Accents and case are handled by
+# normalisation; genuinely different names are not, and a company whose region cannot be
+# resolved scores nothing on geography for no good reason.
+regions:
+  - code: bw
+    name: Baden-Württemberg
+    aliases: [Baden-Wuerttemberg, Baden Wurttemberg, Stuttgart, Karlsruhe, Mannheim, Freiburg]
+  - code: by
+    name: Bayern
+    aliases: [Bavaria, München, Muenchen, Munich, Nürnberg, Nuernberg, Nuremberg, Augsburg]
+  - code: be
+    name: Berlin
+    aliases: [Berlin-Brandenburg]
+  - code: bb
+    name: Brandenburg
+    aliases: [Potsdam]
+  - code: hb
+    name: Bremen
+    aliases: [Bremerhaven]
+  - code: hh
+    name: Hamburg
+    aliases: [Freie und Hansestadt Hamburg]
+  - code: he
+    name: Hessen
+    aliases: [Hesse, Frankfurt, Frankfurt am Main, Darmstadt, Wiesbaden, Kassel]
+  - code: mv
+    name: Mecklenburg-Vorpommern
+    aliases: [Mecklenburg Vorpommern, Rostock, Schwerin]
+  - code: ni
+    name: Niedersachsen
+    aliases: [Lower Saxony, Hannover, Hanover, Braunschweig, Göttingen, Goettingen]
+  - code: nw
+    name: Nordrhein-Westfalen
+    aliases: [North Rhine-Westphalia, NRW, Nordrhein Westfalen, Köln, Koeln, Cologne,
+              Düsseldorf, Duesseldorf, Dortmund, Essen, Bonn, Münster, Muenster, Leverkusen]
+  - code: rp
+    name: Rheinland-Pfalz
+    aliases: [Rhineland-Palatinate, Rheinland Pfalz, Mainz, Ludwigshafen, Koblenz]
+  - code: sl
+    name: Saarland
+    aliases: [Saarbrücken, Saarbruecken]
+  - code: sn
+    name: Sachsen
+    aliases: [Saxony, Dresden, Leipzig, Chemnitz]
+  - code: st
+    name: Sachsen-Anhalt
+    aliases: [Saxony-Anhalt, Sachsen Anhalt, Magdeburg, Halle, Dessau]
+  - code: sh
+    name: Schleswig-Holstein
+    aliases: [Schleswig Holstein, Kiel, Lübeck, Luebeck, Flensburg]
+  - code: th
+    name: Thüringen
+    aliases: [Thuringia, Thueringen, Erfurt, Jena, Gera]
+
+contact_policy:
+  # Prefer an address a company published specifically for applications.
+  prefer_recruitment_contacts: true
+  # A general inbox (info@, kontakt@) may be surfaced, but as a fallback wanting a human
+  # decision. This matters more in Germany than almost anywhere, because the Impressum
+  # obligation means nearly every company publishes one — their presence says nothing
+  # about whether applications are welcome there.
+  allow_general_fallback: true
+  # Look for an official careers page first: applying through a company's own channel is
+  # both likelier to be read and less intrusive than mailing an inbox.
+  require_careers_page_check: true
+
+compliance_notes: |
+  Not legal advice. This records what was established while building the Germany
+  configuration, and what is still open. Read docs/compliance.md before sending anything.
+
+  Established:
+  - § 5 TMG requires a provider identification (Impressum) on commercial websites, carrying
+    a reachable address. In practice this is where most German company contact addresses
+    are published, and the engine's extraction checks /impressum accordingly. An Impressum
+    address is published business contact information; it is not an invitation to receive
+    applications, and the distinction matters.
+  - A functional mailbox (karriere@, bewerbung@, personal@) names a role, not a person, and
+    is business contact information. An address naming an individual (vorname.nachname@) is
+    personal data; the engine refuses to store one, enforced in code rather than by care.
+  - GDPR applies in full, alongside the BDSG. For an individual sending their own job
+    application the lawful basis is normally their own legitimate interest in seeking work.
+    That basis does not extend to bulk unsolicited commercial messaging, and this engine is
+    not built for it.
+  - § 7 UWG governs unsolicited commercial electronic mail and is strict. An individual
+    job application is not Werbung in that sense, but the line is defined by relevance,
+    volume and the ability to stop on request — which is why the caps, the gaps and the
+    suppression list are not optional features.
+  - An opt-out must be honoured permanently and must survive a database rebuild. The
+    suppression list belongs with the private consumer and is append-only.
+
+  Open questions, to be resolved before a campaign:
+  - Whether a given association's member directory permits automated reading. This is
+    per-association, lives in each association's own config file, and must be checked
+    rather than assumed.
+  - Whether a careers portal's terms forbid approaching a published inbox directly. Where a
+    portal exists, it is the better channel regardless.
+  - Retention: how long a discovered contact may be kept after a decision not to apply.
+    Set this explicitly in the private consumer's retention settings.

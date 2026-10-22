@@ -9,8 +9,9 @@
 /eucd
 /eucd.exe
 
-# Databases and exports are local working state, never committed from a dev machine.
-# The dataset a workflow publishes is committed deliberately, under data/.
+# Databases and exports are local working state, never committed. No workflow in this
+# repository publishes a dataset: a public repository's logs, artifacts and release assets
+# are all world-readable, so the crawl runs in a private one. See docs/running-a-crawl.md.
 *.db
 *.db-wal
 *.db-shm

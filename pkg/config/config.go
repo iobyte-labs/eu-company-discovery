@@ -189,6 +189,7 @@ type Bundle struct {
 	Countries    map[string]Country
 	Sectors      map[string]Sector
 	Associations map[string]Association
+	Profiles     map[string]Profile
 }
 
 // CountryCodes returns the configured country codes, sorted.
@@ -196,6 +197,9 @@ func (b *Bundle) CountryCodes() []string { return sortedKeys(b.Countries) }
 
 // SectorSlugs returns the configured sector slugs, sorted.
 func (b *Bundle) SectorSlugs() []string { return sortedKeys(b.Sectors) }
+
+// ProfileSlugs returns the configured ranking profile slugs, sorted.
+func (b *Bundle) ProfileSlugs() []string { return sortedKeys(b.Profiles) }
 
 // AssociationSlugs returns the configured association slugs, sorted.
 func (b *Bundle) AssociationSlugs() []string { return sortedKeys(b.Associations) }
@@ -276,6 +280,7 @@ func Load(dir string, knownAdapters []string) (*Bundle, error) {
 		Countries:    map[string]Country{},
 		Sectors:      map[string]Sector{},
 		Associations: map[string]Association{},
+		Profiles:     map[string]Profile{},
 	}
 	var problems []Problem
 
@@ -308,7 +313,21 @@ func Load(dir string, knownAdapters []string) (*Bundle, error) {
 			bundle.Associations[a.Slug] = a
 		}, &problems)...)
 
+	// Ranking profiles are optional: a configuration with none is one that does not
+	// rank, not a broken one. loadInto already treats a missing directory as nothing to do.
+	problems = append(problems, loadInto(filepath.Join(dir, "profiles"),
+		func(path string, p Profile) {
+			p.sourceFile = path
+			if _, clash := bundle.Profiles[p.Slug]; clash {
+				problems = append(problems, Problem{path,
+					fmt.Sprintf("profile slug %q is already defined", p.Slug)})
+				return
+			}
+			bundle.Profiles[p.Slug] = p
+		}, &problems)...)
+
 	problems = append(problems, bundle.validate(knownAdapters)...)
+	problems = append(problems, bundle.validateProfiles()...)
 	if len(problems) > 0 {
 		sort.Slice(problems, func(i, j int) bool {
 			if problems[i].File != problems[j].File {
