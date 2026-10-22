@@ -13,13 +13,6 @@ import (
 	"github.com/iobyte-labs/eu-company-discovery/pkg/normalize"
 )
 
-// Identity kinds. 'domain' is strong: a registrable domain belongs to one company. 'name' is
-// weak: it only holds within one country, and only after normalisation.
-const (
-	identityDomain = "domain"
-	identityName   = "name"
-)
-
 // UpsertResult reports what an upsert actually did, so a run can be summarised honestly
 // rather than claiming it "processed" a number of companies.
 type UpsertResult struct {
@@ -92,6 +85,10 @@ func upsertCompanyTx(ctx context.Context, tx *sql.Tx, c model.Company) (UpsertRe
 		if key == "" {
 			continue
 		}
+		// The kind comes from the key's own prefix, which normalize.DomainIdentity and
+		// normalize.NameIdentity decide: 'domain' is strong, because a registrable domain
+		// belongs to one company; 'name' is weak, because it only holds within one country
+		// and only after normalisation. One spelling of those values, in one package.
 		kind, value, _ := strings.Cut(key, ":")
 		res, err := tx.ExecContext(ctx,
 			`INSERT OR IGNORE INTO company_identities (kind, value, company_id, created_at)

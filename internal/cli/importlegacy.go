@@ -70,7 +70,9 @@ second time. This command prints a reminder with the counts it saw.`,
 			if err != nil {
 				return eucderrors.Wrap(eucderrors.KindUsage, err, "open %q", args[0])
 			}
-			defer file.Close()
+			// Read-only: the read's own error is checked below, and releasing a file
+			// descriptor cannot fail in a way a caller could act on.
+			defer func() { _ = file.Close() }()
 
 			rows, err := readLegacyCSV(file)
 			if err != nil {

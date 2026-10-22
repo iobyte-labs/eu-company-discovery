@@ -90,7 +90,7 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	}
 	for _, pragma := range pragmas {
 		if _, err := db.ExecContext(ctx, pragma); err != nil {
-			db.Close()
+			_ = db.Close() // cleanup; the pragma failure below is what explains the error
 			return nil, fmt.Errorf("%s: %w", pragma, err)
 		}
 	}

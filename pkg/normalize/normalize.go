@@ -412,7 +412,10 @@ func Email(address string) string {
 	if text == "" {
 		return ""
 	}
-	text = strings.NewReplacer("​", "", " ", " ").Replace(text)
+	// Written as escapes on purpose: a zero-width space and a non-breaking space are
+	// invisible in a source file, and these two characters are the whole point of the
+	// line — sites use them to break up an address.
+	text = strings.NewReplacer("\u200b", "", "\u00a0", " ").Replace(text)
 	text = atObfuscationRe.ReplaceAllString(text, "@")
 	text = dotObfuscationRe.ReplaceAllString(text, ".")
 	// Close up whitespace around the "@" only. Stripping every space instead would glue

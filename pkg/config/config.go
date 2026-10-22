@@ -361,7 +361,8 @@ func decodeFile[T any](path string) (T, error) {
 	if err != nil {
 		return value, err
 	}
-	defer file.Close()
+	// Read-only, as above: the decode error is what matters and it is returned.
+	defer func() { _ = file.Close() }()
 
 	decoder := yaml.NewDecoder(file)
 	decoder.KnownFields(true)
