@@ -413,7 +413,7 @@ func (f *Fetcher) loadRobots(ctx context.Context, origin string) (*robotsRules, 
 		return nil, fmt.Errorf("robots.txt on %s could not be fetched: %w",
 			originHost(origin), err)
 	}
-	defer response.Body.Close()
+	defer response.Body.Close() //nolint:errcheck // nothing useful to do about it
 
 	switch {
 	case response.StatusCode >= 400 && response.StatusCode < 500:
@@ -465,7 +465,7 @@ func (f *Fetcher) do(ctx context.Context, canonical string) (*directory.Page, er
 		}
 		return nil, fmt.Errorf("fetch %s: %w", canonical, err)
 	}
-	defer response.Body.Close()
+	defer response.Body.Close() //nolint:errcheck // nothing useful to do about it
 
 	finalURL := canonical
 	if response.Request != nil && response.Request.URL != nil {

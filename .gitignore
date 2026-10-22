@@ -1,8 +1,13 @@
-# Build output
+# Build output.
+#
+# The binary patterns are anchored to the repository root on purpose. An unanchored "eucd"
+# matches every path element of that name, which silently excluded cmd/eucd/ — so the
+# command's own source was never committed and every CI build failed on "cmd/eucd:
+# directory not found".
 /bin/
 /dist/
-eucd
-eucd.exe
+/eucd
+/eucd.exe
 
 # Databases and exports are local working state, never committed from a dev machine.
 # The dataset a workflow publishes is committed deliberately, under data/.
