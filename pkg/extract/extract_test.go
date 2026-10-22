@@ -260,8 +260,9 @@ func TestDeobfuscateUndoesWhatAPageActuallySays(t *testing.T) {
 
 // The failure this guards against was found on a real member's site: a table of offices
 // where each cell is a run of links with no whitespace between them. Concatenating their
-// text produced "180muenchen@abante.demehr" — an address that exists nowhere, in a dataset
-// whose whole claim is that every address was read off a page.
+// text welded the neighbouring links onto the address — "180" and "mehr" either side of a
+// real one — producing an address that exists nowhere, in a dataset whose whole claim is
+// that every address was read off a page.
 func TestFromPageDoesNotInventAddressesByGluingElements(t *testing.T) {
 	result := FromPage(
 		page(t, "site/glued.html", "https://example.org/kontakt"),
