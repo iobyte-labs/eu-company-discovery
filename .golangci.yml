@@ -1,0 +1,40 @@
+# Linter configuration.
+#
+# The default linter set is kept as it is — errcheck, govet, ineffassign, staticcheck and
+# unused. Nothing is disabled wholesale: a linter that is switched off stops finding the bugs
+# it was switched off for.
+#
+# What is configured here is errcheck, and only for two kinds of call whose error genuinely
+# cannot be acted on. Everything else is handled at the call site, with a reason written
+# down, because "this error does not matter" is a claim about one piece of code and not a
+# policy.
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        # Printing to a writer. A CLI's output is its result, and there is nothing useful to
+        # do when it fails: if stdout is a closed pipe, the operator closed it, and the next
+        # write will fail the same way. The alternative is `_ =` on roughly fifty print
+        # statements, which costs more legibility than it buys.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+        # Closing a read-only database cursor. The query's own error is checked, rows.Err()
+        # is checked after iterating, and a failure to release a cursor we only read from
+        # tells a caller nothing it can use.
+        - (*database/sql.Rows).Close
+
+        # Closing the database handle. Every write goes through a transaction whose Commit is
+        # checked, so a committed change is durable before this is reached. The handle is
+        # closed as a process is ending, and a CLI that has already printed its result cannot
+        # honestly turn that into a failure.
+        - (*github.com/iobyte-labs/eu-company-discovery/pkg/store.Store).Close
+
+# Deliberately NOT excluded: (*os.File).Close.
+#
+# Closing a file that was written is where the bytes are flushed, so dropping that error is
+# how an export truncated by a full disk gets reported as a success — see the export command,
+# which checks it. Excluding the method would have hidden that, and would hide the next one.

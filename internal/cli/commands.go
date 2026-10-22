@@ -635,24 +635,40 @@ func newExportCmd(opts *globals) *cobra.Command {
 			}
 
 			writer := cmd.OutOrStdout()
+			var outputFile *os.File
 			if outputPath != "" {
-				file, err := os.Create(outputPath)
-				if err != nil {
+				if outputFile, err = os.Create(outputPath); err != nil {
 					return eucderrors.Wrap(eucderrors.KindGeneral, err, "create %q", outputPath)
 				}
-				defer file.Close()
-				writer = file
+				writer = outputFile
 			}
 
 			if format == "csv" {
-				if err := export.WriteCSV(writer, companies); err != nil {
-					return err
+				err = export.WriteCSV(writer, companies)
+			} else {
+				err = export.Write(writer, export.Envelope{
+					Generator: "eucd " + eucd.Version,
+					Filter:    filterDescription(country, sector, withContact),
+					Companies: companies,
+				})
+			}
+
+			// Closing a written file is where its last bytes are flushed, so this error is
+			// the difference between a complete export and a truncated one. Dropping it is
+			// how an export cut short by a full disk gets reported as a success — and this
+			// file is the seam between the public engine and a private consumer, which reads
+			// it without any way of knowing it was meant to be longer. The write error wins
+			// if there is one, because it says more about what went wrong.
+			if outputFile != nil {
+				if closeErr := outputFile.Close(); closeErr != nil && err == nil {
+					err = closeErr
 				}
-			} else if err := export.Write(writer, export.Envelope{
-				Generator: "eucd " + eucd.Version,
-				Filter:    filterDescription(country, sector, withContact),
-				Companies: companies,
-			}); err != nil {
+			}
+			if err != nil {
+				if outputPath != "" {
+					return eucderrors.Wrap(eucderrors.KindGeneral, err,
+						"writing %q; it may be incomplete and should not be used", outputPath)
+				}
 				return err
 			}
 
