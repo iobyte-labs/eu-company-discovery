@@ -141,6 +141,12 @@ Not yet built: the `api_directory` and `dataset` adapters, deterministic ranking
 optional OpenRouter provider. `eucd adapters` always tells the truth about what a build can
 actually do.
 
+## Running a crawl
+
+This repository runs no schedule and holds no dataset. A crawl runs in a private repository
+that uses this engine, because a public repository's logs, artifacts and release assets are
+all world-readable — see [running a crawl](docs/running-a-crawl.md).
+
 ## Exit codes
 
 `0` success · `2` configuration · `3` unknown adapter · `4` adapter failure · `5` unsafe
