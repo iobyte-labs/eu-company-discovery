@@ -1,0 +1,66 @@
+# A worked example of an external adapter, kept disabled.
+#
+# Some directories cannot be read with CSS selectors: a PDF member list, a paginated JSON
+# API with its own authentication, a national registry with a bespoke export format. The
+# exec adapter runs a program that reads those and writes model.DirectoryRecord values as
+# JSON, one per line, to stdout. The program can be written in any language and released in
+# its own repository — which is what keeps a Go engine from being a closed shop.
+#
+# The protocol is in docs/adapter-protocol.md. In short: the engine writes one JSON object
+# to the program's stdin ({"protocol", "association", "limits"} — the association carries
+# its own `settings`, so an external adapter is configured exactly as a built-in one is),
+# and reads newline-delimited records back. A line that will not parse is reported as a
+# warning; a run that produces no usable record at all is a failure, whatever the program's
+# exit status said.
+#
+# Why this is disabled, and what has to be true before it is enabled:
+#
+#   1. The program must be authorised by the operator, in their environment:
+#
+#        export EUCD_EXEC_ALLOW=/opt/eucd-adapters/registry-reader
+#
+#      The allowlist is deliberately not in this file. Configuration in this repository
+#      decides what to *read*, never what to *execute* — otherwise "add a directory" and
+#      "run a program on the crawler" would be the same act, and a pull request to a public
+#      repository would be able to do the second while looking like the first. The engine
+#      runs the program with exec and an argv slice, never through a shell, and hands it a
+#      scrubbed environment so the operator's credentials do not travel into it.
+#
+#   2. The source itself must be one that may be read automatically: a member list intended
+#      to be read, terms and robots.txt that permit it, no login or CAPTCHA in the way. If
+#      one of those fails, leave this disabled and write down what was found. Do not work
+#      around it.
+
+slug: fr_registry_exec
+name: A registry read by an external adapter (example)
+country: fr
+sectors: [pharma]
+directory_url: https://registry.example.org/members
+adapter: exec
+access_method: api
+
+disabled: true
+disabled_reason: >-
+  Placeholder. No external adapter has been written and no real registry has been assessed.
+  Before enabling this, authorise the program with EUCD_EXEC_ALLOW on the machine that runs
+  the engine, and check that the source publishes a member list intended to be read
+  automatically.
+
+limits:
+  max_records: 2000
+  timeout: 2m
+
+settings:
+  # An absolute path, or a bare name resolved inside an allowlisted directory. Either way
+  # the allowlist decides, not this file.
+  command: /opt/eucd-adapters/registry-reader
+  # Passed as argv. Nothing here is interpreted as shell syntax, so a space or a quote in
+  # an argument is just a character.
+  args: ["--country", "fr", "--sector", "pharma"]
+  # What the engine will read from stdout before it stops the program. A runaway adapter
+  # cannot fill the engine's memory.
+  max_output_bytes: 4194304
+  # Everything else here is the external adapter's own configuration: it arrives verbatim
+  # in the `association.settings` object on stdin.
+  registry_endpoint: https://registry.example.org/api/v2/members
+  page_size: 100

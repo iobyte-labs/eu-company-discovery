@@ -59,7 +59,7 @@ func TestUpsertIsIdempotent(t *testing.T) {
 		RawName: "Renault SAS", RetrievedAt: time.Now().UTC(),
 	}}
 	input.Contacts = []model.Contact{{
-		Address: "recrutement@renault.fr", Kind: model.ContactRecruitment,
+		Address: "recrutement@acme.fr", Kind: model.ContactRecruitment,
 		Verification: model.VerificationPublished, FoundOnURL: "https://www.renault.fr/contact",
 	}}
 
@@ -339,7 +339,7 @@ func TestListCompaniesFilters(t *testing.T) {
 	withContact := company("Avec Contact", "fr", "https://avec.fr")
 	withContact.Sectors = []string{"automotive"}
 	withContact.Contacts = []model.Contact{{
-		Address: "jobs@avec.fr", Verification: model.VerificationPublished,
+		Address: "jobs@acme.fr", Verification: model.VerificationPublished,
 		FoundOnURL: "https://avec.fr/jobs",
 	}}
 	mustUpsert(t, store, withContact)

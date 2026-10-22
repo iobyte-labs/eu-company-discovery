@@ -75,7 +75,7 @@ func TestURL(t *testing.T) {
 		"acme.fr/jobs":                                 "https://acme.fr/jobs",
 		"ftp://acme.fr/x":                              "",
 		"javascript:alert(1)":                          "",
-		"mailto:a@b.fr":                                "",
+		"mailto:a@acme.fr":                             "",
 		"":                                             "",
 		"https://acme.fr/p?utm_source=x":               "https://acme.fr/p",
 	}
@@ -133,15 +133,15 @@ func TestEmail(t *testing.T) {
 
 func TestClassifyLocalPart(t *testing.T) {
 	cases := map[string]string{
-		"recrutement@acme.fr":    "recruitment",
-		"jobs-france@acme.fr":    "recruitment",
-		"Careers2024@acme.fr":    "recruitment",
-		"rh@acme.fr":             "hr",
-		"personalabteilung@x.de": "hr",
-		"contact@acme.fr":        "general",
-		"info@acme.fr":           "general",
-		"facturation@acme.fr":    "other",
-		"":                       "other",
+		"recrutement@acme.fr":       "recruitment",
+		"jobs-france@acme.fr":       "recruitment",
+		"Careers2024@acme.fr":       "recruitment",
+		"rh@acme.fr":                "hr",
+		"personalabteilung@acme.de": "hr",
+		"contact@acme.fr":           "general",
+		"info@acme.fr":              "general",
+		"facturation@acme.fr":       "other",
+		"":                          "other",
 	}
 	for input, want := range cases {
 		if got := ClassifyLocalPart(input); got != want {

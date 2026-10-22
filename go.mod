@@ -3,9 +3,12 @@ module github.com/iobyte-labs/eu-company-discovery
 go 1.26.6
 
 require (
+	github.com/PuerkitoBio/goquery v1.13.0
+	github.com/andybalholm/cascadia v1.3.4
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.61.0
 	golang.org/x/text v0.43.0
+	golang.org/x/time v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.61.0
 )

@@ -442,8 +442,20 @@ type CompanyFilter struct {
 	Sector  string
 	// WithContact restricts the result to companies that have at least one contact.
 	WithContact bool
-	Limit       int
-	Offset      int
+	// WithoutContact restricts the result to companies that have none. With WithContact it
+	// matches nothing, which is what the caller asked for.
+	WithoutContact bool
+	// WithWebsite restricts the result to companies whose website is known. Enrichment
+	// needs one: the engine visits a company's own site, it does not search for it.
+	WithWebsite bool
+	// CrawlStatuses restricts the result to these crawl states. Empty means any.
+	CrawlStatuses []model.CrawlStatus
+	// OldestCheckedFirst orders by how long it has been since the company was last
+	// visited, never-visited first. The default ordering is by name, which is what a human
+	// reading a listing wants.
+	OldestCheckedFirst bool
+	Limit              int
+	Offset             int
 }
 
 // ListCompanies returns companies matching filter, ordered by name for a stable listing.
@@ -469,7 +481,27 @@ func (s *Store) ListCompanies(ctx context.Context, filter CompanyFilter) ([]mode
 	if filter.WithContact {
 		query.WriteString(" AND EXISTS (SELECT 1 FROM contacts ct WHERE ct.company_id = c.company_id)")
 	}
-	query.WriteString(" ORDER BY c.name COLLATE NOCASE, c.company_id")
+	if filter.WithoutContact {
+		query.WriteString(
+			" AND NOT EXISTS (SELECT 1 FROM contacts ct WHERE ct.company_id = c.company_id)")
+	}
+	if filter.WithWebsite {
+		query.WriteString(" AND c.website <> ''")
+	}
+	if len(filter.CrawlStatuses) > 0 {
+		query.WriteString(" AND c.crawl_status IN (" + placeholders(len(filter.CrawlStatuses)) + ")")
+		for _, status := range filter.CrawlStatuses {
+			args = append(args, string(status))
+		}
+	}
+	if filter.OldestCheckedFirst {
+		// Never-checked companies first, then the longest-neglected. A run that stops at a
+		// deadline then resumes where it left off instead of revisiting the same companies.
+		query.WriteString(" ORDER BY c.last_checked_at IS NOT NULL, c.last_checked_at,")
+	} else {
+		query.WriteString(" ORDER BY")
+	}
+	query.WriteString(" c.name COLLATE NOCASE, c.company_id")
 	if filter.Limit > 0 {
 		query.WriteString(" LIMIT ?")
 		args = append(args, filter.Limit)

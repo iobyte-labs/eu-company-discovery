@@ -18,6 +18,7 @@ import (
 	"github.com/iobyte-labs/eu-company-discovery/pkg/directory"
 	eucderrors "github.com/iobyte-labs/eu-company-discovery/pkg/errors"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/export"
+	"github.com/iobyte-labs/eu-company-discovery/pkg/fetch"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/model"
 	"github.com/iobyte-labs/eu-company-discovery/pkg/store"
 )
@@ -299,9 +300,11 @@ func newDBCmd(opts *globals) *cobra.Command {
 
 func newDiscoverCmd(opts *globals) *cobra.Command {
 	var (
-		slugs   []string
-		country string
-		dryRun  bool
+		slugs    []string
+		country  string
+		dryRun   bool
+		cacheDir string
+		noCache  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "discover",
@@ -348,12 +351,30 @@ func newDiscoverCmd(opts *globals) *cobra.Command {
 				fmt.Fprintf(out, "\n%s (%s, adapter %s)\n",
 					association.Slug, association.Country, association.Adapter)
 
+				// A manual source fetches nothing, so it is not handed a fetcher it could
+				// misuse: an adapter must not be able to escalate beyond the access_method
+				// the operator declared. Every other source gets a fetcher built from its
+				// own limits, so one slow directory is read slowly without slowing the rest.
+				var fetcher directory.Fetcher
+				if runtime.AccessMethod != model.AccessManual {
+					built, buildErr := fetch.New(fetch.Options{
+						UserAgent: fetch.UserAgent(eucd.Version),
+						Limits:    runtime.Limits,
+						CacheDir:  pageCacheDir(cacheDir, noCache),
+						Logger:    logger.With("association", association.Slug),
+					})
+					if buildErr != nil {
+						return eucderrors.Wrap(eucderrors.KindGeneral, buildErr,
+							"build the fetcher for %q", association.Slug)
+					}
+					fetcher = built
+				}
+
 				result, err := adapter.Discover(cmd.Context(), directory.Request{
 					Association: runtime,
+					Fetcher:     fetcher,
 					Limits:      runtime.Limits,
 					Logger:      logger.With("association", association.Slug),
-					// Fetcher is nil: the fetching adapters arrive in Phase 2, and a
-					// manual adapter must not be handed one it could misuse.
 				})
 				if err != nil {
 					return eucderrors.Wrap(eucderrors.KindAdapter, err,
@@ -411,7 +432,18 @@ func newDiscoverCmd(opts *globals) *cobra.Command {
 		"association slug to run; repeatable. Default: every enabled source")
 	cmd.Flags().StringVar(&country, "country", "", "only run sources for this country code")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "read the sources but write nothing")
+	cmd.Flags().StringVar(&cacheDir, "cache-dir", defaultCacheDir(),
+		"where fetched pages are cached, so a re-run does not refetch (env EUCD_CACHE_DIR)")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "do not read or write the page cache")
 	return cmd
+}
+
+// pageCacheDir resolves the cache directory, or "" when caching is off.
+func pageCacheDir(dir string, disabled bool) string {
+	if disabled {
+		return ""
+	}
+	return dir
 }
 
 func selectAssociations(
