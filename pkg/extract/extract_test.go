@@ -3,6 +3,7 @@ package extract
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -253,6 +254,42 @@ func TestDeobfuscateUndoesWhatAPageActuallySays(t *testing.T) {
 		got := emailPattern.FindString(deobfuscate(input))
 		if got != want {
 			t.Errorf("deobfuscate(%q) yielded %q, want %q", input, got, want)
+		}
+	}
+}
+
+// The failure this guards against was found on a real member's site: a table of offices
+// where each cell is a run of links with no whitespace between them. Concatenating their
+// text welded the neighbouring links onto the address — "180" and "mehr" either side of a
+// real one — producing an address that exists nowhere, in a dataset whose whole claim is
+// that every address was read off a page.
+func TestFromPageDoesNotInventAddressesByGluingElements(t *testing.T) {
+	result := FromPage(
+		page(t, "site/glued.html", "https://example.org/kontakt"),
+		"https://example.org")
+
+	got := addresses(result.Contacts)
+	want := []string{
+		"bewerbung@example.org", // split across an inline <span>: still one address
+		"hamburg@example.org",
+		"muenchen@example.org",
+		"presse@example.org",
+		"zentrale@example.org",
+	}
+	sort.Strings(got)
+	if len(got) != len(want) {
+		t.Fatalf("addresses = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("address %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+	for _, address := range got {
+		// The shape of the bug: text from a neighbouring element welded onto the address.
+		if strings.HasSuffix(address, "mehr") || strings.HasPrefix(address, "180") ||
+			strings.HasPrefix(address, "040") {
+			t.Errorf("%q has a neighbouring element's text glued to it", address)
 		}
 	}
 }

@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  A contact page in the shape that real ones take: a table of offices, each row a run of
+  links with no whitespace between them. goquery's Text() concatenates those into
+  "180muenchen@example.orgmehr", and an address pattern over that invents an address nobody
+  published. This fixture is that exact shape, taken from a real page.
+
+  It also carries the opposite case: an address split across an inline <span>, which must
+  NOT be separated, or a real address is lost.
+-->
+<html lang="de">
+<head><meta charset="utf-8"><title>Kontakt</title></head>
+<body>
+  <table class="offices">
+    <tr><td><a href="/t/1">180</a><a href="mailto:muenchen@example.org">muenchen@example.org</a><a href="/m/1">mehr</a></td></tr>
+    <tr><td><a href="/t/2">040</a><a href="mailto:hamburg@example.org">hamburg@example.org</a><a href="/m/2">mehr</a></td></tr>
+  </table>
+
+  <p>Zentrale:<br>zentrale@example.org</p>
+
+  <!-- Split across an inline element to keep a scraper honest: still one address. -->
+  <p>Bewerbungen: <span>bewerb</span>ung@example.org</p>
+
+  <ul><li>Presse</li><li>presse@example.org</li></ul>
+</body>
+</html>
