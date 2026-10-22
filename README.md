@@ -20,7 +20,7 @@ distroless image, and holds ~25 MB resident.
 go install github.com/iobyte-labs/eu-company-discovery/cmd/eucd@latest
 ```
 
-Or build from source (Go 1.25+):
+Or build from source (Go 1.26+, as `go.mod` requires):
 
 ```bash
 git clone https://github.com/iobyte-labs/eu-company-discovery
@@ -57,6 +57,8 @@ eucd discover                            # record what was found
 eucd enrich --dry-run --limit 10         # visit company sites, report what would be stored
 eucd enrich --deadline 45m               # record published contacts and careers pages
 eucd companies list --country fr
+eucd rank --profile de-pharma-qa          # score them, with reasons
+eucd companies top --profile de-pharma-qa --explain
 eucd export --format json -o companies.json
 eucd db status
 ```
@@ -72,6 +74,7 @@ Everything below is configuration or a separate package. The engine does not cha
 | A member directory | `config/associations/<slug>.yaml` with CSS selectors | No |
 | A bespoke source | A Go package calling `directory.Register` from `init` | In its own repo |
 | A source in another language | The `exec` adapter — any binary speaking the JSON contract | In any language |
+| A ranking profile | `config/profiles/<slug>.yaml`, or a private file passed to `--profile-file` | No |
 
 See [adding a country or sector](docs/adding-a-country.md),
 [adding an association](docs/adding-an-association.md) and
@@ -103,6 +106,11 @@ merge leaves two records a human can join later.
 constraints, so a run that crashes halfway and is restarted cannot double anything. In
 particular several contacts never mean several applications.
 
+**Ranking is explainable, and never guessed.** Every point a company scores comes with a
+reason, and the points sum to the score. Scores run 0–100 and mean the same thing across
+profiles. A company is never scored for belonging to an association — that is how it was
+found, not evidence that it fits. See [docs/ranking.md](docs/ranking.md).
+
 **Safety is structural.** Every URL came from untrusted input. `pkg/fetch.Guard` refuses
 non-web schemes and ports, local hostnames, cloud metadata endpoints, private and reserved
 address ranges, IPv4-mapped spellings of those, and numeric shorthands like `127.1` — then
@@ -119,7 +127,10 @@ pkg/normalize/       identity, dedup keys, URL/name/email normalisation
 pkg/config/          country, sector and association configuration
 pkg/store/           SQLite persistence, migrations, dedup
 pkg/fetch/           HTTP safe to point at an untrusted URL
+pkg/extract/         contacts, careers pages and what a company says it does
 pkg/directory/       the adapter contract and registry
+pkg/rank/            deterministic, explainable scoring
+pkg/llm/             the optional model provider
 pkg/export/          the versioned data contract
 pkg/errors/          deliberate failures and their exit codes
 config/              example countries, sectors and associations
@@ -128,18 +139,15 @@ docs/                concepts, protocols, compliance
 
 ## Status
 
-Phase 1 (foundation) is complete and tested: packaging, configuration, data model, schema
-and migrations, identity and deduplication, the SSRF guard, the adapter registry with the
-`seed_list` adapter, the versioned export, and the CLI.
+Working and tested: configuration, the data model, the schema and migrations, identity and
+deduplication, the SSRF guard, the fetcher (guarded redirects, per-domain rate limiting, a
+response cap, robots.txt, an on-disk cache), four adapters (`seed_list`, `html_directory`,
+`link_harvest`, `exec`), contact and careers-page extraction, `enrich`, the optional model
+provider, deterministic ranking, and the versioned export. Every test runs offline against
+recorded fixtures and local servers.
 
-Phase 2 (fetching and extraction) is complete and tested: the fetcher — guarded redirects,
-per-domain rate limiting, a response cap, robots.txt, an on-disk page cache — the
-`html_directory` and `exec` adapters, contact and careers-page extraction, and `eucd
-enrich`. Every test runs offline against recorded fixtures and local servers.
-
-Not yet built: the `api_directory` and `dataset` adapters, deterministic ranking, and the
-optional OpenRouter provider. `eucd adapters` always tells the truth about what a build can
-actually do.
+Not yet built: the `api_directory` and `dataset` adapters. `eucd adapters` always tells the
+truth about what a build can actually do.
 
 ## Running a crawl
 

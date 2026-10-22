@@ -16,6 +16,35 @@ import (
 	"github.com/iobyte-labs/eu-company-discovery/pkg/store"
 )
 
+// profileFrom loads a profile either from the configuration or from a file.
+//
+// The file path is how a CV-derived profile reaches the engine: a CV is personal data and
+// cannot live in this public repository, so the profile it produces is written somewhere
+// private and named by path. What arrives carries preferences only.
+func profileFrom(bundle *config.Bundle, slug, path string) (model.Profile, string, error) {
+	switch {
+	case path != "" && slug != "":
+		return model.Profile{}, "", eucderrors.New(eucderrors.KindUsage,
+			"give either --profile or --profile-file, not both")
+	case path != "":
+		profile, err := config.LoadProfileFile(path, bundle)
+		if err != nil {
+			return model.Profile{}, "", eucderrors.Wrap(eucderrors.KindConfig, err,
+				"profile file %q is not usable", path)
+		}
+		return profile, profile.Headline, nil
+	case slug != "":
+		configured, err := resolveProfile(bundle, slug)
+		if err != nil {
+			return model.Profile{}, "", err
+		}
+		return configured.Model(), configured.Headline, nil
+	default:
+		return model.Profile{}, "", eucderrors.New(eucderrors.KindUsage,
+			"a profile is required: --profile <slug> or --profile-file <path>")
+	}
+}
+
 // resolveProfile finds a configured profile, or explains what is available.
 func resolveProfile(bundle *config.Bundle, slug string) (config.Profile, error) {
 	profile, ok := bundle.Profiles[slug]
@@ -35,6 +64,7 @@ func resolveProfile(bundle *config.Bundle, slug string) (config.Profile, error) 
 func newRankCmd(opts *globals) *cobra.Command {
 	var (
 		profileSlug string
+		profilePath string
 		country     string
 		sector      string
 		dryRun      bool
@@ -61,18 +91,17 @@ func newRankCmd(opts *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			configured, err := resolveProfile(bundle, profileSlug)
+			profile, headline, err := profileFrom(bundle, profileSlug, profilePath)
 			if err != nil {
 				return err
 			}
-			profile := configured.Model()
 
 			ranker, err := rank.New(profile, rank.Options{
 				Bundle: bundle, Now: time.Now().UTC(),
 			})
 			if err != nil {
 				return eucderrors.Wrap(eucderrors.KindConfig, err, "profile %q is not usable",
-					profileSlug)
+					profile.Slug)
 			}
 
 			db, err := openStore(cmd.Context(), opts)
@@ -90,7 +119,7 @@ func newRankCmd(opts *globals) *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "Profile %s — %q\n", profile.Slug, configured.Headline)
+			fmt.Fprintf(out, "Profile %s — %q\n", profile.Slug, headline)
 			fmt.Fprintf(out, "  scored over: %s\n", strings.Join(ranker.Active(), ", "))
 			fmt.Fprintf(out, "  100.0 points available; min_score %.1f\n\n", profile.MinScore)
 
@@ -153,7 +182,9 @@ func newRankCmd(opts *globals) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profileSlug, "profile", "", "profile slug from config/profiles (required)")
+	cmd.Flags().StringVar(&profileSlug, "profile", "", "profile slug from config/profiles")
+	cmd.Flags().StringVar(&profilePath, "profile-file", "",
+		"a profile file outside the configuration, such as one derived from a CV")
 	cmd.Flags().StringVar(&country, "country", "", "only score companies in this country")
 	cmd.Flags().StringVar(&sector, "sector", "", "only score companies in this sector")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "score and report, write nothing")
@@ -162,7 +193,6 @@ func newRankCmd(opts *globals) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 0, "score at most this many companies (0 for all)")
 	cmd.Flags().IntVar(&show, "show", 10, "print this many top companies with their reasons (0 for all)")
 	cmd.Flags().BoolVar(&allReasons, "all-reasons", false, "include reasons that scored nothing")
-	_ = cmd.MarkFlagRequired("profile")
 	return cmd
 }
 
@@ -249,6 +279,7 @@ func orDash(value string) string {
 func newCompaniesTopCmd(opts *globals) *cobra.Command {
 	var (
 		profileSlug string
+		profilePath string
 		minScore    float64
 		includeZero bool
 		country     string
@@ -266,12 +297,13 @@ func newCompaniesTopCmd(opts *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			configured, err := resolveProfile(bundle, profileSlug)
+			profile, _, err := profileFrom(bundle, profileSlug, profilePath)
 			if err != nil {
 				return err
 			}
+			profileSlug = profile.Slug
 			if !cmd.Flags().Changed("min-score") {
-				minScore = configured.MinScore
+				minScore = profile.MinScore
 			}
 
 			db, err := openStore(cmd.Context(), opts)
@@ -334,7 +366,9 @@ func newCompaniesTopCmd(opts *globals) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profileSlug, "profile", "", "profile slug (required)")
+	cmd.Flags().StringVar(&profileSlug, "profile", "", "profile slug from config/profiles")
+	cmd.Flags().StringVar(&profilePath, "profile-file", "",
+		"a profile file outside the configuration, such as one derived from a CV")
 	cmd.Flags().Float64Var(&minScore, "min-score", 0, "minimum score (default: the profile's)")
 	cmd.Flags().BoolVar(&includeZero, "include-zero", false, "include vetoed and gated companies")
 	cmd.Flags().StringVar(&country, "country", "", "filter by country code")
@@ -342,6 +376,5 @@ func newCompaniesTopCmd(opts *globals) *cobra.Command {
 	cmd.Flags().BoolVar(&withContact, "with-contact", false, "only companies with a contact")
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows (0 for no limit)")
 	cmd.Flags().BoolVar(&explain, "explain", false, "print every company's reasons")
-	_ = cmd.MarkFlagRequired("profile")
 	return cmd
 }

@@ -4,7 +4,7 @@
 // a script or a CI step:
 //
 // Exit codes mean something. 0 is success; each deliberate failure has its own code, listed
-// in docs/cli.md and defined in [pkg/errors]. A command never exits 0 after failing.
+// in the README and defined in [pkg/errors]. A command never exits 0 after failing.
 //
 // Nothing is skipped silently. Warnings are printed; partial results say they are partial.
 // A run that was capped by a limit reports that it was capped, so a short result is never
