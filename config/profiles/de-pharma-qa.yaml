@@ -1,0 +1,82 @@
+# A ranking profile: what to look for, not who is looking.
+#
+# There is no personal data here and there must never be any. No name, no CV, no address,
+# no contact details — this file ships in a public repository. It says "pharmacovigilance
+# and quality roles in German pharma" and nothing about any individual. The CV and the
+# person live with the private consumer that reads this engine's export.
+#
+# See docs/ranking.md for how each factor is scored, and
+# .claude/skills/add-profile/SKILL.md for the procedure.
+
+slug: de-pharma-qa
+headline: Pharmacovigilance, QA/QC and audit roles in German pharma
+
+# ISO 3166-1 alpha-2, and the country must exist under config/countries/.
+countries: [de]
+
+# Region codes from that country's file. A company's region is matched against each
+# region's code, its name and its aliases, so a directory writing "Bayern", "Bavaria" or
+# "Munich" all count as `by`.
+regions: [by, bw, he, nw]
+
+# Sector slugs from config/sectors/. The sector's own keywords, synonyms and activities do
+# the matching, and its negative_keywords subtract — that is what keeps recruitment
+# agencies and trade press out of a manufacturer list.
+sectors: [pharma]
+
+languages: [de, en]
+
+# What a company must have said somewhere, or it is not a candidate at any score.
+# Use sparingly: every must_have is a company you will never see.
+must_have:
+  - pharma
+
+# Any of these anywhere vetoes the company outright, score 0, no other factor computed.
+exclude:
+  - personalvermittlung
+  - zeitarbeit
+  - recruitment agency
+  - agence de recrutement
+
+# Weighted terms. Weight is relative, not absolute: the skills factor scores the share of
+# your total positive weight that matched, so doubling every weight changes nothing.
+# A negative weight subtracts — that is how you say "this makes a company less relevant".
+skills:
+  - term: pharmakovigilanz
+    weight: 10
+    aliases: [pharmacovigilance, drug safety, arzneimittelsicherheit, PV]
+  - term: qualitaetssicherung
+    weight: 9
+    aliases: [quality assurance, QA, qualitatssicherung, quality management]
+  - term: GMP
+    weight: 8
+    aliases: [cGMP, GxP, gute herstellungspraxis, good manufacturing practice]
+  - term: qualitaetskontrolle
+    weight: 7
+    aliases: [quality control, QC, qualitatskontrolle]
+  - term: audit
+    weight: 6
+    aliases: [auditierung, inspektion, inspection, internes audit]
+  - term: CAPA
+    weight: 5
+    aliases: [korrekturmassnahme, corrective action, abweichungsmanagement]
+  - term: validierung
+    weight: 5
+    aliases: [validation, qualifizierung, qualification, IQ, OQ, PQ]
+  - term: regulatory affairs
+    weight: 4
+    aliases: [zulassung, regulatory]
+  # Negative: a contract packer is in the sector but rarely has the roles this profile wants.
+  - term: lohnabfuellung
+    weight: -3
+    aliases: [contract packaging, lohnverpackung]
+
+# Company size, when known. The engine does not yet learn a company's size, so this factor
+# is inert on most records and weighted accordingly — an unknown size counts as neither a
+# match nor a mismatch.
+size_buckets: [small, medium, large]
+
+# Below this, a company is not worth reviewing. Scores run 0-100 and mean the same thing
+# across profiles. Rankings below the threshold are still stored, so the profile can be
+# tuned against what it rejected.
+min_score: 40.0
